@@ -1,0 +1,19 @@
+{
+  "source": "Fed Board FOMC schedule (2024-08-09); BLS CPI and Employment Situation calendars. Edit desk-data/macro-calendar.json to override. Do not scrape.",
+  "events": [
+    { "date": "2026-08-07", "kind": "NFP", "name": "Employment Situation" },
+    { "date": "2026-08-12", "kind": "CPI", "name": "Consumer Price Index" },
+    { "date": "2026-09-04", "kind": "NFP", "name": "Employment Situation" },
+    { "date": "2026-09-11", "kind": "CPI", "name": "Consumer Price Index" },
+    { "date": "2026-09-16", "kind": "FOMC", "name": "FOMC decision" },
+    { "date": "2026-10-02", "kind": "NFP", "name": "Employment Situation" },
+    { "date": "2026-10-14", "kind": "CPI", "name": "Consumer Price Index" },
+    { "date": "2026-10-28", "kind": "FOMC", "name": "FOMC decision" },
+    { "date": "2026-11-06", "kind": "NFP", "name": "Employment Situation" },
+    { "date": "2026-11-10", "kind": "CPI", "name": "Consumer Price Index" },
+    { "date": "2026-12-04", "kind": "NFP", "name": "Employment Situation" },
+    { "date": "2026-12-09", "kind": "FOMC", "name": "FOMC decision" },
+    { "date": "2026-12-10", "kind": "CPI", "name": "Consumer Price Index" },
+    { "date": "2027-01-27", "kind": "FOMC", "name": "FOMC decision" }
+  ]
+}

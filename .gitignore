@@ -1,0 +1,11 @@
+**/node_modules/
+**/dist/
+**/.bridge/
+.env
+.env.*
+*.local
+.DS_Store
+.session.json
+*.tsbuildinfo
+**/.vite/
+Chart Analyzer/Temp/
