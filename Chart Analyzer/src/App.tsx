@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { ApiError, connectRobinhood, fetchStatus } from "./api"
 import { DeskApp, type DeskHandle } from "./desk/DeskApp"
 import ScreenerApp from "./screener/ScreenerApp"
+import type { BookMode } from "./types"
 
 type Tab = "desk" | "screener"
 
@@ -11,6 +12,7 @@ export default function App() {
   const [connecting, setConnecting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [bookMode, setBookMode] = useState<BookMode>("live")
   const deskRef = useRef<DeskHandle>(null)
 
   function openAuth(authUrl: string | null | undefined) {
@@ -85,6 +87,22 @@ export default function App() {
           </button>
         </nav>
         <div className="header-meta shell-actions">
+          <div className="mode-toggle" role="group" aria-label="Account book">
+            <button
+              type="button"
+              className={bookMode === "live" ? "is-on" : ""}
+              onClick={() => void deskRef.current?.setBookMode("live")}
+            >
+              Live
+            </button>
+            <button
+              type="button"
+              className={bookMode === "paper" ? "is-on is-paper" : ""}
+              onClick={() => void deskRef.current?.setBookMode("paper")}
+            >
+              Paper
+            </button>
+          </div>
           <span>
             Robinhood <strong>{connected ? "connected" : "not connected"}</strong>
           </span>
@@ -118,10 +136,11 @@ export default function App() {
             setConnected(true)
             setRefreshing(false)
           }}
+          onBookMode={setBookMode}
         />
       </div>
       <div hidden={tab !== "screener"}>
-        <ScreenerApp />
+        <ScreenerApp bookMode={bookMode} />
       </div>
     </div>
   )

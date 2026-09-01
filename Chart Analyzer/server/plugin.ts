@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import type { Plugin } from "vite"
 import { buildPlan } from "./analyze"
 import { loadDeskPlan, readDeskState, refreshDesk, writeDeskSettings } from "./desk"
+import { readHandoff } from "./handoff"
+import { readActiveAccount, sessionLabel } from "./accountSnapshot"
 import { readJson, sendJson } from "./http"
 import { clearQueue, queueMeta, savePlan, savePlans } from "./markdown"
 import { DataError, requestTicker } from "./market"
@@ -33,6 +35,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
   try {
     if (url.pathname === "/api/status" && req.method === "GET") {
       const mcp = mcpStatus()
+      const book = readActiveAccount()
       sendJson(res, 200, {
         source: "robinhood-mcp",
         connected: mcp.connected,
@@ -41,6 +44,15 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
           ? "Robinhood MCP is connected."
           : "Connect Robinhood once in this app. Tokens stay on this PC, not in Google Drive.",
         queue: queueMeta(),
+        book: {
+          bookMode: book.bookMode,
+          label: sessionLabel(book.bookMode),
+          placeCashOrders: book.placeCashOrders,
+          equity: book.equity,
+          cash: book.cash,
+          remainingHeat: book.remainingRoom,
+          perNameRisk: book.riskPct,
+        },
       })
       return
     }
@@ -115,7 +127,8 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
     }
 
     if (url.pathname === "/api/desk" && req.method === "GET") {
-      sendJson(res, 200, { ...readDeskState(), queuedTickers: listQueuedTickers() })
+      const state = readDeskState()
+      sendJson(res, 200, { ...state, queuedTickers: listQueuedTickers(state.settings.bookMode) })
       return
     }
 
@@ -131,19 +144,27 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
     }
 
     if (url.pathname === "/api/desk/refresh" && req.method === "POST") {
-      sendJson(res, 200, { ...await refreshDesk(), queuedTickers: listQueuedTickers() })
+      const state = await refreshDesk()
+      sendJson(res, 200, { ...state, queuedTickers: listQueuedTickers(state.settings.bookMode) })
       return
     }
 
     if (url.pathname === "/api/desk/settings" && req.method === "POST") {
       const body = await readJson<Partial<DeskSettings>>(req)
-      sendJson(res, 200, { settings: writeDeskSettings(body), snapshot: readDeskState().snapshot })
+      const settings = writeDeskSettings(body)
+      const state = readDeskState()
+      sendJson(res, 200, { settings, snapshot: state.snapshot, queuedTickers: listQueuedTickers(settings.bookMode) })
       return
     }
 
     if (url.pathname === "/api/desk/place-order" && req.method === "POST") {
       const body = await readJson<{ ticker?: string }>(req)
       sendJson(res, 200, await queuePotentialOrder(body.ticker ?? ""))
+      return
+    }
+
+    if (url.pathname === "/api/handoff" && req.method === "GET") {
+      sendJson(res, 200, readHandoff())
       return
     }
 

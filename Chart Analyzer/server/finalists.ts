@@ -1,5 +1,5 @@
 import type { Grade, PlanOfAttack, Readiness } from "../src/types"
-import { sizeFromRoom, type AccountSnapshot } from "./accountSnapshot"
+import { sizeFromAccount, type AccountSnapshot } from "./accountSnapshot"
 import { SCORE_WEIGHTS, finalistConfig, type FinalistConfig } from "./finalistConfig"
 import { sessionRangePct } from "./stopWriter"
 import { closesFromBars, priorThrust60d } from "./thrust"
@@ -10,6 +10,7 @@ export const REJECT_REASONS = [
   "weekly_down",
   "earnings",
   "risk_missing",
+  "cannot_size",
   "risk_vs_atr",
   "risk_vs_atr_high",
   "stop_too_wide_pct",
@@ -33,6 +34,7 @@ export const REJECT_LABELS: Record<RejectReason, string> = {
   weekly_down: "weekly down",
   earnings: "earnings window",
   risk_missing: "no 1-share risk",
+  cannot_size: "cannot size on this book",
   risk_vs_atr: "risk vs ATR floor",
   risk_vs_atr_high: "risk vs ATR ceiling",
   stop_too_wide_pct: "stop too wide %",
@@ -419,6 +421,7 @@ function emptyTallies(): Record<RejectReason, number> {
     weekly_down: 0,
     earnings: 0,
     risk_missing: 0,
+    cannot_size: 0,
     risk_vs_atr: 0,
     risk_vs_atr_high: 0,
     stop_too_wide_pct: 0,
@@ -453,7 +456,7 @@ function sortFinalists(plans: PlanOfAttack[]): PlanOfAttack[] {
 }
 
 function withAccount(plan: PlanOfAttack, account: AccountSnapshot | null): PlanOfAttack {
-  const sized = sizeFromRoom(account?.remainingRoom, plan.entryPrice, plan.stopPrice)
+  const sized = sizeFromAccount(account, plan.entryPrice, plan.stopPrice)
   const dollarAdv = dollarAdvOf(plan) ?? undefined
   const thrust = thrustFromPlan(plan, finalistConfig().priorThrustPct)
   const next: PlanOfAttack = {
@@ -481,7 +484,7 @@ export function selectFinalists(
   const kept: PlanOfAttack[] = []
   for (const raw of plans) {
     const plan = withAccount(raw, account)
-    const reason = rejectReason(plan, cfg)
+    const reason = rejectReason(plan, cfg) ?? (plan.sizeableNow === false ? "cannot_size" as const : null)
     if (reason) {
       tallies[reason] += 1
       warehouse.push({ ...plan, failedGates: [reason] })

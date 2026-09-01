@@ -30,7 +30,7 @@ import {
 import { isScreenerCsv, readScreenerFiles } from "../lib/screener"
 import { extractTickers, typedSymbols } from "../lib/tickers"
 import { gapShort, px } from "../lib/ticket"
-import type { PlanOfAttack, QueueStatus, ScanRow } from "../types"
+import type { AppStatus, BookMode, PlanOfAttack, QueueStatus, ScanRow } from "../types"
 
 function money(n: number) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" })
@@ -75,9 +75,10 @@ function hydrateRows(session: { rows?: ScanRow[]; symbols?: string[]; keepers?: 
   return next.map((row) => ({ ...row, grade: migrateGrade(row.grade) }))
 }
 
-export default function ScreenerApp() {
+export default function ScreenerApp({ bookMode }: { bookMode: BookMode }) {
   const [connected, setConnected] = useState(false)
   const [queue, setQueue] = useState<QueueStatus | null>(null)
+  const [book, setBook] = useState<AppStatus["book"] | null>(null)
   const [ticker, setTicker] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,13 +123,14 @@ export default function ScreenerApp() {
     const status = await fetchStatus()
     setConnected(status.connected)
     setQueue(status.queue)
+    setBook(status.book)
   }
 
   useEffect(() => {
     void refreshStatus().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : String(err))
     })
-  }, [])
+  }, [bookMode])
 
   useEffect(() => {
     let cancelled = false
@@ -596,6 +598,9 @@ export default function ScreenerApp() {
         failCount={counts.failed}
         skipCount={counts.skipped}
         fileName={queue?.fileName}
+        bookLabel={book?.label ?? (bookMode === "paper" ? "PAPER" : "LIVE")}
+        bookEquity={book?.equity ?? null}
+        placeCashOrders={book?.placeCashOrders ?? bookMode === "live"}
       />
 
       {error && <div className="banner">{error}</div>}

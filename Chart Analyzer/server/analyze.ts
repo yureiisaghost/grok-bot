@@ -10,6 +10,7 @@ import {
 } from "./bars"
 import { finalistConfig } from "./finalistConfig"
 import { nowPtStamp } from "./http"
+import { readActiveAccount, sizeFromAccount } from "./accountSnapshot"
 import {
   atr,
   daysUntil,
@@ -938,6 +939,11 @@ export function buildPlan(pack: MarketPack): PlanOfAttack {
 
   const chart = overlay.slice(-180)
   const risk = oneShareRisk(chosen.entryPrice, chosen.stopPrice)
+  const book = readActiveAccount()
+  const sized = sizeFromAccount(book, chosen.entryPrice, chosen.stopPrice)
+  if (sized && !sized.sizeableNow && chosen.grade !== "Pass") {
+    warnings.push(`Cannot take 1 share on the ${book.bookMode === "paper" ? "paper" : "live"} book at 1%/6% (equity ${book.equity != null ? `$${book.equity.toFixed(2)}` : "n/a"}). Save will drop it from the Candidate dock.`)
+  }
   const targets = rTargets(chosen.entryPrice, chosen.stopPrice)
   const namedLevel = chosen.entryPrice ?? chosen.sketch.pivot
   const namedLabel = chosen.entryPrice ? "trigger" : chosen.sketch.levelLabel

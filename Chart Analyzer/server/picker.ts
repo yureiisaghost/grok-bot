@@ -6,6 +6,7 @@ import {
   type RejectReason,
 } from "./finalists"
 import type {
+  BookMode,
   DeskBook,
   DeskPick,
   DeskPosition,
@@ -24,6 +25,8 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   riskPct: 1,
   maxHeatPct: 6,
   maxNewNames: 2,
+  bookMode: "live",
+  paperStartingCash: 5000,
 }
 
 export interface BookPosition {
@@ -86,10 +89,15 @@ function clampSettings(raw: Partial<DeskSettings> | null | undefined): DeskSetti
   const riskPct = finite(raw?.riskPct) ? raw.riskPct : DEFAULT_SETTINGS.riskPct
   const maxHeatPct = finite(raw?.maxHeatPct) ? raw.maxHeatPct : DEFAULT_SETTINGS.maxHeatPct
   const maxNewNames = finite(raw?.maxNewNames) ? raw.maxNewNames : DEFAULT_SETTINGS.maxNewNames
+  const paperStartingCash = finite(raw?.paperStartingCash)
+    ? raw.paperStartingCash
+    : DEFAULT_SETTINGS.paperStartingCash
   return {
     riskPct: Math.min(5, Math.max(0.25, riskPct)),
     maxHeatPct: Math.min(20, Math.max(1, maxHeatPct)),
     maxNewNames: Math.round(Math.min(5, Math.max(1, maxNewNames))),
+    bookMode: raw?.bookMode === "paper" ? "paper" : "live",
+    paperStartingCash: Math.min(1_000_000, Math.max(1_000, paperStartingCash)),
   }
 }
 
@@ -202,9 +210,11 @@ export function pickForBook(
     regime?: DeskRegime | null
     heldCloses?: Record<string, number[]>
     working?: DeskPick[]
+    bookMode?: BookMode
   },
 ): DeskSnapshot {
   const settings = clampSettings(settingsInput)
+  const bookMode = opts?.bookMode ?? settings.bookMode
   const equity = Math.max(0, book.equity)
   const cash = Math.max(0, book.cash)
   const maxHeat = equity * (settings.maxHeatPct / 100)
@@ -247,6 +257,7 @@ export function pickForBook(
 
   const openHeat = positions.reduce((sum, pos) => sum + (pos.dollarHeat ?? 0), 0)
   const deskBook: DeskBook = {
+    bookMode,
     equity,
     cash,
     buyingPower: book.buyingPower,
@@ -400,6 +411,7 @@ export function pickForBook(
 
   return {
     refreshedAt: opts?.refreshedAt ?? new Date().toISOString(),
+    bookMode,
     usedNewList: opts?.usedNewList ?? false,
     scan: opts?.scan ?? null,
     regime,

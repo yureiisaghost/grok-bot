@@ -135,12 +135,23 @@ export interface PlanOfAttack {
   heldChart?: boolean
 }
 
+export type BookMode = "live" | "paper"
+
 export interface AppStatus {
   source: string
   connected: boolean
   authUrl: string | null
   message: string
   queue: QueueStatus
+  book: {
+    bookMode: BookMode
+    label: "LIVE" | "PAPER"
+    placeCashOrders: boolean
+    equity: number | null
+    cash: number | null
+    remainingHeat: number | null
+    perNameRisk: number | null
+  }
 }
 
 export interface QueueStatus {
@@ -164,6 +175,8 @@ export interface DeskSettings {
   riskPct: number
   maxHeatPct: number
   maxNewNames: number
+  bookMode: BookMode
+  paperStartingCash: number
 }
 
 export interface DeskPosition {
@@ -267,6 +280,7 @@ export interface DeskScanInfo {
 }
 
 export interface DeskBook {
+  bookMode?: BookMode
   equity: number
   cash: number
   buyingPower: number | null
@@ -280,6 +294,7 @@ export interface DeskBook {
 
 export interface DeskSnapshot {
   refreshedAt: string
+  bookMode?: BookMode
   usedNewList: boolean
   scan: DeskScanInfo | null
   regime: DeskRegime | null
@@ -310,8 +325,41 @@ export type HandoffStatus = "queued" | "pending" | "filled"
 export interface PlaceOrderResult {
   ticker: string
   role: PotentialOrderRole
+  bookMode: BookMode
   path: string
+  driveFolder: string
   jsonFile: string
   mdFile: string
   queuedAt: string
+}
+
+export interface HandoffUpload {
+  local: string
+  drive: string
+  kind: string
+  bookMode?: BookMode
+  required: boolean
+}
+
+export interface DriveFolderGuide {
+  drive: string
+  kind: string
+}
+
+export interface HandoffManifest {
+  schema: "grok-trading-handoff/v1"
+  generatedAt: string
+  reason: "save" | "refresh" | "place-order" | "settings"
+  bookMode: BookMode
+  driveRoot: "Grok Trading"
+  instruction: string
+  phoneGrok: {
+    readFirst: string
+    active: BookMode
+    placeCashOrders: boolean
+    doNotPlaceCashIfPaper: boolean
+  }
+  neverUpload: string[]
+  folders: DriveFolderGuide[]
+  uploads: HandoffUpload[]
 }

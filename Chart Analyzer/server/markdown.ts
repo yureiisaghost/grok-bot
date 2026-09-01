@@ -1,9 +1,10 @@
 import fs from "node:fs"
 import path from "node:path"
 import type { DeskScanInfo, OhlcvBar, PlanOfAttack } from "../src/types"
-import { readAccountSnapshot } from "./accountSnapshot"
+import { readActiveAccount } from "./accountSnapshot"
 import { ACTIVE_FILE, ARCHIVE_DIR, SCANS_DIR as QUEUE_DIR, ensureDeskDirs } from "./deskPaths"
 import { selectFinalists, tallyLine, mergeWarehouse } from "./finalists"
+import { writeHandoff } from "./handoff"
 import { nowPtStamp, todayPtIso } from "./http"
 const DATE_FILE = /^(\d{4}-\d{2}-\d{2})(?:_scan-(\d+))?\.md$/i
 
@@ -49,9 +50,14 @@ function warehousePaths(day: string, scan: number) {
 
 function headerFor(day: string, scan: number, kind: "warehouse" | "finalists", stamp = nowPtStamp()) {
   const title = scan <= 1 ? `# ${day}` : `# ${day} · Scan ${scan}`
+  const book = readActiveAccount()
+  const session = book.bookMode === "paper" ? "PAPER" : "LIVE"
+  const cashLine = book.placeCashOrders ? "cash orders OK" : "do not place cash orders"
+  const bookLine = `**Active session:** ${session} · equity ${money(book.equity)} · leftover heat ${money(book.remainingRoom)} · ${cashLine}`
   if (kind === "warehouse") {
     return `${title}
 **Session started:** ${stamp}
+${bookLine}
 **Purpose:** First-pass warehouse (raw) from the Screener. Not the Trade Desk pick. Grades are Candidate/Developing. Refresh on the Desk assigns the pick from this universe.
 
 ---
@@ -59,7 +65,8 @@ function headerFor(day: string, scan: number, kind: "warehouse" | "finalists", s
   }
   return `${title}
 **Session started:** ${stamp}
-**Purpose:** Screener keeper list (Candidate and near). Trade Desk Refresh reads this folder and sizes against the live book. No 20-name cap. A new scan archives this file.
+${bookLine}
+**Purpose:** Screener keeper list (Candidate and near). Sized against the ${session} book. Trade Desk Refresh reads this folder. No 20-name cap. A new scan archives this file.
 
 ---
 `
@@ -276,7 +283,7 @@ export function savePlans(plans: PlanOfAttack[], scanId = "default") {
   snapshotFatWorkingFile(filePath, day, scan, fs.existsSync(rawJson))
   const merged = mergeWarehouse(readWarehouse(rawJson), incoming)
   ensureDirs()
-  const result = selectFinalists(merged, { account: readAccountSnapshot() })
+  const result = selectFinalists(merged, { account: readActiveAccount() })
   fs.writeFileSync(rawJson, JSON.stringify(result.warehouse), "utf8")
   fs.writeFileSync(rawMd, composeMarkdown(day, scan, "warehouse", result.warehouse), "utf8")
   const jsonName = jsonNameFor(day, scan)
@@ -296,6 +303,7 @@ export function savePlans(plans: PlanOfAttack[], scanId = "default") {
   }
   fs.writeFileSync(filePath, md, "utf8")
   writeActive({ scanId, day, scan, file: path.basename(filePath), json: jsonName })
+  writeHandoff("save")
   return metaFor(filePath, merged.length, result.finalists.length)
 }
 
@@ -474,6 +482,7 @@ export function clearQueue() {
   ensureDirs()
   const archived = archiveWorkingFiles()
   clearActive()
+  writeHandoff("save")
   return { archivedTo: archived[archived.length - 1] ?? null, tickerCount: 0 }
 }
 

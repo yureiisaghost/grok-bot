@@ -8,6 +8,7 @@ import type { OhlcvBar } from "../src/types"
 import { DataError, writePack, type MarketPack } from "./market"
 import { FileOAuthProvider, MCP_URL } from "./mcpProvider"
 import { collectOpenBuys, collectOpenStops, OPEN_STOP_STATES } from "./orders"
+import { readActiveAccount } from "./accountSnapshot"
 import type { AccountBook, BookPosition } from "./picker"
 
 const provider = new FileOAuthProvider()
@@ -207,6 +208,8 @@ async function callToolsParallel<T>(work: () => Promise<T>): Promise<T> {
 }
 
 async function loadEquity(): Promise<number | null> {
+  const active = readActiveAccount()
+  if (active.bookMode === "paper" && active.equity != null) return active.equity
   if (cachedEquity !== undefined && Date.now() - equityAt < 10 * 60_000) return cachedEquity
   try {
     if (!cachedAccount) {

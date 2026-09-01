@@ -1,15 +1,18 @@
 import fs from "node:fs"
-import type { DeskSettings, DeskSnapshot, DeskState, OhlcvBar, PlanOfAttack } from "../src/types"
+import type { BookMode, DeskPick, DeskSettings, DeskSnapshot, DeskState, OhlcvBar, PlanOfAttack } from "../src/types"
 import { nowPtStamp, todayPtIso } from "./http"
 import { loadDeskUniverse } from "./markdown"
-import { ACCOUNT_FILE, LAST_REFRESH_FILE, SETTINGS_FILE, ensureDeskDirs } from "./deskPaths"
-import { clampSettings, DEFAULT_SETTINGS, pickForBook } from "./picker"
+import { PAPER_ACCOUNT_FILE, SETTINGS_FILE, ensureDeskDirs, snapshotFile } from "./deskPaths"
+import { writeAccountFromActive, writeAccountSummary } from "./accountSnapshot"
+import { writeHandoff } from "./handoff"
+import { clampSettings, DEFAULT_SETTINGS, pickForBook, type AccountBook } from "./picker"
 import { fetchAccountBook, fetchDeskDaily, fetchDeskEarnings, fetchDeskQuotes, fetchDeskTape } from "./rhMcp"
 import { evaluateRegime } from "./regime"
 import { applyQuotesToPositions, overlayPlanQuote, quotePriority } from "./liveOverlay"
 import { applyMacroBlackout, loadMacroEvents } from "./macro"
 import { annotateHeldPositions } from "./heldState"
 import { buildHeldChartPlan } from "./heldChart"
+import { applyPaperTape, emptyPaperAccount, paperToBook, readPaperAccount, writePaperAccount } from "./paperAccount"
 import { syncPotentialPackets } from "./potentialQueue"
 
 export function readDeskSettings(): DeskSettings {
@@ -25,13 +28,25 @@ export function writeDeskSettings(raw: Partial<DeskSettings>): DeskSettings {
   ensureDeskDirs()
   const settings = clampSettings({ ...readDeskSettings(), ...raw })
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf8")
+  if (settings.bookMode === "paper") {
+    const ledger = readPaperAccount(settings.paperStartingCash)
+    const unused = ledger.positions.length === 0 && ledger.pendingBuys.length === 0 && ledger.closed.length === 0
+    if (!fs.existsSync(PAPER_ACCOUNT_FILE) || unused) {
+      writePaperAccount(emptyPaperAccount(settings.paperStartingCash))
+    }
+  }
+  const snapshot = readLastSnapshot(settings.bookMode)
+  if (snapshot) writeLiveAccount(snapshot)
+  else writeAccountFromActive()
+  writeHandoff("settings")
   return settings
 }
 
-function readLastSnapshot(): DeskSnapshot | null {
+function readLastSnapshot(mode = readDeskSettings().bookMode): DeskSnapshot | null {
   try {
-    if (!fs.existsSync(LAST_REFRESH_FILE)) return null
-    return JSON.parse(fs.readFileSync(LAST_REFRESH_FILE, "utf8")) as DeskSnapshot
+    const file = snapshotFile(mode)
+    if (!fs.existsSync(file)) return null
+    return JSON.parse(fs.readFileSync(file, "utf8")) as DeskSnapshot
   } catch {
     return null
   }
@@ -39,17 +54,21 @@ function readLastSnapshot(): DeskSnapshot | null {
 
 function writeLastSnapshot(snapshot: DeskSnapshot) {
   ensureDeskDirs()
-  fs.writeFileSync(LAST_REFRESH_FILE, JSON.stringify(snapshot, null, 2), "utf8")
+  const mode = snapshot.bookMode === "paper" ? "paper" : "live"
+  fs.writeFileSync(snapshotFile(mode), JSON.stringify(snapshot, null, 2), "utf8")
 }
 
 function writeLiveAccount(snapshot: DeskSnapshot) {
-  ensureDeskDirs()
-  fs.writeFileSync(ACCOUNT_FILE, JSON.stringify({
+  writeAccountSummary({
+    bookMode: snapshot.bookMode === "paper" ? "paper" : "live",
+    placeCashOrders: snapshot.bookMode !== "paper",
     equity: snapshot.book.equity,
-    remaining_room: snapshot.book.remainingHeat,
-    risk_pct: snapshot.book.perNameRisk,
+    cash: snapshot.book.cash,
+    remainingRoom: snapshot.book.remainingHeat,
+    riskPct: snapshot.book.perNameRisk,
+    maxHeat: snapshot.book.maxHeat,
     updatedAt: snapshot.refreshedAt,
-  }, null, 2), "utf8")
+  })
 }
 
 export function readDeskState(): DeskState {
@@ -57,6 +76,31 @@ export function readDeskState(): DeskState {
     settings: readDeskSettings(),
     snapshot: readLastSnapshot(),
   }
+}
+
+/** After Place Order, keep the on-disk snapshot in sync so heat/cards update without a full Refresh. */
+export function noteWorkingPick(pick: DeskPick, status: "queued" | "pending") {
+  const snapshot = readLastSnapshot()
+  if (!snapshot) return
+  const ticker = pick.ticker.toUpperCase()
+  const working = [
+    ...(snapshot.working ?? []).filter((row) => row.ticker.toUpperCase() !== ticker),
+    { ...pick, ticker, orderStatus: status },
+  ]
+  const pendingHeat = working.reduce((sum, row) => sum + (Number.isFinite(row.dollarRisk) ? row.dollarRisk : 0), 0)
+  const next: DeskSnapshot = {
+    ...snapshot,
+    working,
+    pick: snapshot.pick?.ticker.toUpperCase() === ticker ? { ...snapshot.pick, orderStatus: status } : snapshot.pick,
+    runnerUp: snapshot.runnerUp?.ticker.toUpperCase() === ticker ? { ...snapshot.runnerUp, orderStatus: status } : snapshot.runnerUp,
+    book: {
+      ...snapshot.book,
+      pendingHeat,
+      remainingHeat: Math.max(0, snapshot.book.maxHeat - snapshot.book.openHeat - pendingHeat),
+    },
+  }
+  writeLastSnapshot(next)
+  writeLiveAccount(next)
 }
 
 function extraClosesFrom(
@@ -67,19 +111,26 @@ function extraClosesFrom(
   return heldCloses
 }
 
+async function loadBook(mode: BookMode): Promise<AccountBook> {
+  if (mode === "paper") return paperToBook(readPaperAccount(readDeskSettings().paperStartingCash))
+  return fetchAccountBook()
+}
+
 export async function refreshDesk(): Promise<DeskState> {
   const settings = readDeskSettings()
-  const previous = readLastSnapshot()
+  const mode = settings.bookMode
+  const previous = readLastSnapshot(mode)
   const universe = loadDeskUniverse()
   const today = todayPtIso()
   const [book, tape] = await Promise.all([
-    fetchAccountBook(),
+    loadBook(mode),
     fetchDeskTape().catch((err) => {
       console.warn(`[desk] tape pull failed (${err instanceof Error ? err.message : String(err)}). Regime unknown.`)
       return { qqqDaily: [], spyWeekly: [] }
     }),
   ])
-  const symbols = quotePriority(universe.plans, book.positions)
+  const pendingTickers = (book.openBuys ?? []).map((row) => ({ ticker: row.ticker }))
+  const symbols = quotePriority(universe.plans, [...book.positions, ...pendingTickers])
   const heldNeedDaily = book.positions
     .map((pos) => pos.ticker)
     .filter((ticker) => {
@@ -105,8 +156,16 @@ export async function refreshDesk(): Promise<DeskState> {
     const quote = quotes.get(plan.ticker.toUpperCase())
     return quote ? overlayPlanQuote(plan, quote) : plan
   })
-  const marked = applyQuotesToPositions(book.positions, quotes)
-  const queued = syncPotentialPackets(marked, book.openBuys === undefined ? [] : book.openBuys)
+  let workingBook = book
+  let paperFilled: string[] = []
+  if (mode === "paper") {
+    const applied = applyPaperTape(readPaperAccount(settings.paperStartingCash), quotes, nowPtStamp())
+    writePaperAccount(applied.ledger)
+    workingBook = paperToBook(applied.ledger)
+    paperFilled = applied.filledTickers
+  }
+  const marked = applyQuotesToPositions(workingBook.positions, quotes)
+  const queued = syncPotentialPackets(marked, workingBook.openBuys === undefined ? [] : workingBook.openBuys, mode)
   const working = queued.working.map((row) => {
     const quote = quotes.get(row.ticker.toUpperCase())
     return quote ? { ...row, lastPrice: quote.last } : row
@@ -120,16 +179,17 @@ export async function refreshDesk(): Promise<DeskState> {
   for (const [ticker, bars] of extraDaily) extraBars[ticker] = bars
   const earnDates: Record<string, string> = {}
   for (const [ticker, date] of extraEarn) earnDates[ticker] = date
-  const snapshot = pickForBook(plans, { ...book, positions: marked }, settings, {
+  const snapshot = pickForBook(plans, { ...workingBook, positions: marked }, settings, {
     usedNewList,
     scan: universe.meta.fileName || universe.plans.length ? universe.meta : null,
     refreshedAt: nowPtStamp(),
     regime,
     heldCloses: extraClosesFrom(extraDaily),
     working,
+    bookMode: mode,
   })
   snapshot.working = working
-  snapshot.filledFromQueue = queued.filledTickers
+  snapshot.filledFromQueue = [...new Set([...queued.filledTickers, ...paperFilled])]
   snapshot.positions = annotateHeldPositions(snapshot.positions, {
     plans,
     extraBars,
@@ -140,6 +200,7 @@ export async function refreshDesk(): Promise<DeskState> {
   snapshot.heldCharts = extraBars
   writeLastSnapshot(snapshot)
   writeLiveAccount(snapshot)
+  writeHandoff("refresh")
   return { settings, snapshot }
 }
 
@@ -169,7 +230,7 @@ export async function loadDeskPlan(ticker: string): Promise<PlanOfAttack | null>
   if (saved) return saved
   const snapshot = readLastSnapshot()
   const pos = snapshot?.positions.find((row) => row.ticker.toUpperCase() === symbol)
-  if (!pos) return null
+  if (!snapshot || !pos) return null
   const cached = snapshot.heldCharts?.[symbol] ?? snapshot.heldCharts?.[pos.ticker]
   if (cached?.length) return buildHeldChartPlan(pos, cached)
   try {

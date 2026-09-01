@@ -1,4 +1,4 @@
-import type { AppStatus, ClearResult, DeskSettings, DeskState, PlaceOrderResult, PlanOfAttack, QueueStatus } from "./types"
+import type { AppStatus, ClearResult, DeskSettings, DeskState, HandoffManifest, PlaceOrderResult, PlanOfAttack, QueueStatus } from "./types"
 
 export class ApiError extends Error {
   code?: string
@@ -111,4 +111,8 @@ export function placePotentialOrder(ticker: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticker }),
   }).then((res) => parse<PlaceOrderResult>(res))
+}
+
+export function fetchHandoff() {
+  return fetch("/api/handoff").then((res) => parse<HandoffManifest>(res))
 }
