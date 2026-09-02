@@ -8,6 +8,7 @@ export const ROOT = path.resolve(__dirname, "..", "..")
 export const DESK_DIR = path.join(ROOT, "desk-data")
 export const SCANS_DIR = path.join(DESK_DIR, "scans")
 export const ARCHIVE_DIR = path.join(SCANS_DIR, "Archive")
+export const OUTCOMES_DIR = path.join(SCANS_DIR, "outcomes")
 export const ACTIVE_FILE = path.join(SCANS_DIR, ".active-scan.json")
 export const LAST_REFRESH_FILE = path.join(DESK_DIR, "last-refresh.json")
 export const LAST_REFRESH_PAPER_FILE = path.join(DESK_DIR, "last-refresh-paper.json")
@@ -62,6 +63,7 @@ export function posixRel(abs: string) {
 export function ensureDeskDirs() {
   fs.mkdirSync(SCANS_DIR, { recursive: true })
   fs.mkdirSync(ARCHIVE_DIR, { recursive: true })
+  fs.mkdirSync(OUTCOMES_DIR, { recursive: true })
   fs.mkdirSync(HANDOFF_DIR, { recursive: true })
 }
 

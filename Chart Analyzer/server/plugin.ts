@@ -8,6 +8,7 @@ import { readJson, sendJson } from "./http"
 import { clearQueue, queueMeta, savePlan, savePlans } from "./markdown"
 import { DataError, requestTicker } from "./market"
 import { queuePotentialOrder, listQueuedTickers } from "./placeOrder"
+import { resolveOpenOutcomes } from "./outcomes"
 import { beginMcpConnect, finishMcpAuth, mcpStatus, NeedsAuthError, fetchMarketPack } from "./rhMcp"
 import type { DeskSettings, PlanOfAttack } from "../src/types"
 
@@ -165,6 +166,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
 
     if (url.pathname === "/api/handoff" && req.method === "GET") {
       sendJson(res, 200, readHandoff())
+      return
+    }
+
+    if (url.pathname === "/api/outcomes/resolve" && req.method === "POST") {
+      sendJson(res, 200, await resolveOpenOutcomes())
       return
     }
 
