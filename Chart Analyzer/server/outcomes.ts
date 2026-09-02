@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import type { OhlcvBar, PlanOfAttack } from "../src/types"
-import { OUTCOMES_DIR, DESK_DIR, ensureDeskDirs } from "./deskPaths"
+import { ACTIVE_FILE, ARCHIVE_DIR, OUTCOMES_DIR, DESK_DIR, ensureDeskDirs } from "./deskPaths"
 import { nowPtStamp } from "./http"
 import { fetchDeskDaily } from "./rhMcp"
 import { roundPx } from "./indicators"
@@ -291,4 +291,22 @@ export async function resolveOpenOutcomes() {
     updated.push(`${next.ticker}:${next.state}`)
   }
   return { resolved: updated.length, cards: updated, at: nowPtStamp() }
+}
+
+export function mintFromActiveScan() {
+  try {
+    if (!fs.existsSync(ACTIVE_FILE)) return [] as string[]
+    const active = JSON.parse(fs.readFileSync(ACTIVE_FILE, "utf8")) as { day?: string; scan?: number }
+    const day = active.day
+    const scan = active.scan ?? 1
+    if (!day) return []
+    const stem = scan <= 1 ? day : `${day}_scan-${scan}`
+    const raw = path.join(ARCHIVE_DIR, `${stem}_raw.json`)
+    if (!fs.existsSync(raw)) return []
+    const data = JSON.parse(fs.readFileSync(raw, "utf8")) as PlanOfAttack[]
+    const plans = Array.isArray(data) ? data.filter((plan) => plan?.ticker) : []
+    return mintOutcomeStubs({ day, scan, plans })
+  } catch {
+    return [] as string[]
+  }
 }
