@@ -8,7 +8,7 @@ import { readJson, sendJson } from "./http"
 import { clearQueue, queueMeta, savePlan, savePlans } from "./markdown"
 import { DataError, requestTicker } from "./market"
 import { queuePotentialOrder, listQueuedTickers } from "./placeOrder"
-import { resolveOpenOutcomes } from "./outcomes"
+import { mintFromActiveScan, resolveOpenOutcomes } from "./outcomes"
 import { beginMcpConnect, finishMcpAuth, mcpStatus, NeedsAuthError, fetchMarketPack } from "./rhMcp"
 import type { DeskSettings, PlanOfAttack } from "../src/types"
 
@@ -107,7 +107,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
         sendJson(res, 400, { error: "Nothing to save. Analyze a ticker first.", code: "validate" })
         return
       }
-      sendJson(res, 200, savePlan(plan, body.scanId))
+      const saved = savePlan(plan, body.scanId)
+      mintFromActiveScan()
+      sendJson(res, 200, saved)
       return
     }
 
@@ -118,7 +120,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
         sendJson(res, 400, { error: "Nothing to save. Run a queue and pick a batch size.", code: "validate" })
         return
       }
-      sendJson(res, 200, savePlans(plans, body.scanId))
+      const saved = savePlans(plans, body.scanId)
+      mintFromActiveScan()
+      sendJson(res, 200, saved)
       return
     }
 
