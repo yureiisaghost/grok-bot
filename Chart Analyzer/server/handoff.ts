@@ -11,6 +11,7 @@ import {
   HANDOFF_MANIFEST_FILE,
   LAST_REFRESH_FILE,
   LAST_REFRESH_PAPER_FILE,
+  OUTCOMES_DIR,
   PAPER_ACCOUNT_FILE,
   SCANS_DIR,
   SETTINGS_FILE,
@@ -31,6 +32,7 @@ export const DRIVE_FOLDERS: DriveFolderGuide[] = [
   { drive: "handoff/DESK-BRIEF.md", kind: "Decision brief after the session flag" },
   { drive: "handoff/GROK-HANDOFF.json", kind: "Exact file list for Bot to upload" },
   { drive: "desk-data/scans/", kind: "Screener keepers + .active-scan.json pointer" },
+  { drive: "desk-data/scans/outcomes/", kind: "Frozen outcome cards (setup + tape fate)" },
   { drive: "desk-data/last-refresh.json", kind: "Live desk snapshot" },
   { drive: "desk-data/last-refresh-paper.json", kind: "Paper desk snapshot (kept when you switch to cash)" },
   { drive: "desk-data/paper-account.json", kind: "Paper ledger" },
@@ -135,17 +137,7 @@ function money(n: number | null | undefined) {
 
 function sessionBanner(mode: BookMode, equity: number | null | undefined, cash: number | null | undefined, perName: number | null | undefined) {
   const paper = mode === "paper"
-  return `# ACTIVE SESSION: ${sessionLabel(mode)}
-
-**Place cash / Robinhood orders: ${paper ? "NO" : "YES"}**
-**Book:** ${paper ? "Paper training account" : "Live Robinhood cash"}
-**Equity:** ${money(equity)}
-**Cash:** ${money(cash)}
-**1R slot (1%):** ${money(perName)}
-**Tickets folder:** ${paper ? "`Robinhood/Paper/Potential Tickers/`" : "`Robinhood/Potential Tickers/`"}
-
-If this file says PAPER, do not place or manage cash orders. If it says LIVE, queued tickets in Potential Tickers may be placed in Robinhood.
-`
+  return `# ACTIVE SESSION: ${sessionLabel(mode)}\n\n**Place cash / Robinhood orders: ${paper ? "NO" : "YES"}**\n**Book:** ${paper ? "Paper training account" : "Live Robinhood cash"}\n**Equity:** ${money(equity)}\n**Cash:** ${money(cash)}\n**1R slot (1%):** ${money(perName)}\n**Tickets folder:** ${paper ? "`Robinhood/Paper/Potential Tickers/`" : "`Robinhood/Potential Tickers/`"}\n\nIf this file says PAPER, do not place or manage cash orders. If this file says LIVE, queued tickets in Potential Tickers may be placed in Robinhood.\n`
 }
 
 function writeActiveSessionFiles() {
@@ -197,56 +189,11 @@ function buildBrief(reason: HandoffReason, mode: BookMode, snapshot: DeskSnapsho
   const watchLines = watch.length
     ? watch.map((row) => `- ${row.ticker} · ${row.setupType} · ${row.note}`).join("\n")
     : "- none"
-  const uploadLines = uploads.map((row) => `- \`${row.local}\` → Drive \`Grok Trading/${row.drive}\` (${row.kind})`).join("\n")
+  const uploadLines = uploads.map((row) => `- \\`${row.local}\\` → Drive \\`Grok Trading/${row.drive}\\` (${row.kind})`).join("\n")
   const equity = book?.equity ?? active.equity
   const cash = book?.cash ?? active.cash
   const perName = book?.perNameRisk ?? active.riskPct
-  return `${sessionBanner(mode, equity, cash, perName)}
----
-
-# Trade Desk brief
-
-**Active session:** ${sessionLabel(mode)}
-**Generated:** ${nowPtStamp()}
-**Why this file exists:** Grok Bot ran Trade Desk locally. Upload the paths below to Google Drive (same relative folders). Phone Grok reads handoff/ACTIVE-SESSION.md first.
-
-## Account
-${modeLine}
-
-- Equity: ${money(equity)}
-- Cash: ${money(cash)}
-- Open heat: ${money(book?.openHeat)}
-- Pending heat: ${money(book?.pendingHeat)}
-- Leftover heat: ${money(book?.remainingHeat ?? active.remainingRoom)}
-- 1R slot: ${money(perName)}
-- Scan: ${scan?.fileName ?? "none"}
-- Last action: ${reason}
-
-## Potential
-- Pick: ${pick ? `${pick.ticker} · ${pick.shares} sh · entry ${money(pick.entryPrice)} · stop ${money(pick.stopPrice)} · ${pick.why}` : "none"}
-- Runner-up: ${runner ? `${runner.ticker} · ${runner.shares} sh · entry ${money(runner.entryPrice)} · stop ${money(runner.stopPrice)}` : "none"}
-
-## Working orders
-${workLines}
-
-## Open positions
-${heldLines}
-
-## Watchlist
-${watchLines}
-
-## Regime
-${snapshot?.regime ? `${snapshot.regime.status} — ${snapshot.regime.reason}` : "n/a"}
-
-${snapshot?.nothingReason ? `## Nothing to take\n${snapshot.nothingReason}\n` : ""}## Upload map
-Copy each local file to Google Drive **Grok Trading/** keeping the path. Do not rename. Skip Drive \`(1)\` conflict copies.
-
-${uploadLines}
-
-## Do not upload
-- Robinhood OAuth tokens
-- \`node_modules\`, \`.env\`, \`.bridge\`
-`
+  return `${sessionBanner(mode, equity, cash, perName)}\n---\n\n# Trade Desk brief\n\n**Active session:** ${sessionLabel(mode)}\n**Generated:** ${nowPtStamp()}\n**Why this file exists:** Grok Bot ran Trade Desk locally. Upload the paths below to Google Drive (same relative folders). Phone Grok reads handoff/ACTIVE-SESSION.md first.\n\n## Account\n${modeLine}\n\n- Equity: ${money(equity)}\n- Cash: ${money(cash)}\n- Open heat: ${money(book?.openHeat)}\n- Pending heat: ${money(book?.pendingHeat)}\n- Leftover heat: ${money(book?.remainingHeat ?? active.remainingRoom)}\n- 1R slot: ${money(perName)}\n- Scan: ${scan?.fileName ?? "none"}\n- Last action: ${reason}\n\n## Potential\n- Pick: ${pick ? `${pick.ticker} · ${pick.shares} sh · entry ${money(pick.entryPrice)} · stop ${money(pick.stopPrice)} · ${pick.why}` : "none"}\n- Runner-up: ${runner ? `${runner.ticker} · ${runner.shares} sh · entry ${money(runner.entryPrice)} · stop ${money(runner.stopPrice)}` : "none"}\n\n## Working orders\n${workLines}\n\n## Open positions\n${heldLines}\n\n## Watchlist\n${watchLines}\n\n## Regime\n${snapshot?.regime ? `${snapshot.regime.status} — ${snapshot.regime.reason}` : "n/a"}\n\n${snapshot?.nothingReason ? `## Nothing to take\\n${snapshot.nothingReason}\\n` : ""}## Upload map\nCopy each local file to Google Drive **Grok Trading/** keeping the path. Do not rename. Skip Drive \\`(1)\\` conflict copies.\n\n${uploadLines}\n\n## Do not upload\n- Robinhood OAuth tokens\n- \\`node_modules\\`, \\`.env\\`, \\`.bridge\\`\n`
 }
 
 export function buildHandoff(reason: HandoffReason = "settings"): { manifest: HandoffManifest; snapshot: DeskSnapshot | null } {
@@ -265,6 +212,7 @@ export function buildHandoff(reason: HandoffReason = "settings"): { manifest: Ha
   addFile(uploads, LAST_REFRESH_FILE, "live-snapshot", { bookMode: "live" })
   addFile(uploads, LAST_REFRESH_PAPER_FILE, "paper-snapshot", { bookMode: "paper" })
   for (const file of activeScanFiles()) addFile(uploads, file, "scan")
+  addDirJsonMd(uploads, OUTCOMES_DIR, "outcomes")
   addDirJsonMd(uploads, dirs.potential, paperKind("potential", mode), mode)
   addDirJsonMd(uploads, dirs.filled, paperKind("filled", mode), mode)
 
