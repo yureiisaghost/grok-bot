@@ -363,3 +363,54 @@ export interface HandoffManifest {
   folders: DriveFolderGuide[]
   uploads: HandoffUpload[]
 }
+
+export type OutcomeState = "waiting" | "filled" | "gapped" | "stopped" | "expired"
+
+export type OutcomeTakeStatus = "open" | "taken" | "skipped"
+
+export type OutcomeSkipReason =
+  | "chase"
+  | "blackout"
+  | "unstacked-slot"
+  | "stop-too-tight"
+  | "discretion"
+  | "dead"
+  | null
+
+export interface OutcomeCard {
+  schema: "grok-trading-outcome/v1"
+  ticker: string
+  name: string
+  scanDay: string
+  scan: number
+  setupType: string
+  grade: string
+  score: number
+  warnings: string[]
+  lastAtScan: number
+  entryPrice: number
+  stopPrice: number
+  limitCeiling: number
+  r1: number | null
+  r2: number | null
+  r3: number | null
+  atr14: number | null
+  oneShareRisk: number | null
+  stackedAtScan: boolean | null
+  takeStatus: OutcomeTakeStatus
+  skipReason: OutcomeSkipReason
+  state: OutcomeState
+  filledAt: string | null
+  fillPrice: number | null
+  stoppedAt: string | null
+  expiredAt: string | null
+  sessionsSinceScan: number
+  maeR: number | null
+  mfeR: number | null
+  hitR1: boolean
+  hitR2: boolean
+  hitR3: boolean
+  marks: string[]
+  updatedAt: string
+  ruleVersion: "outcome/v1"
+}
