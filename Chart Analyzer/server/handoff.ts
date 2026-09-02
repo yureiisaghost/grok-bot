@@ -137,7 +137,17 @@ function money(n: number | null | undefined) {
 
 function sessionBanner(mode: BookMode, equity: number | null | undefined, cash: number | null | undefined, perName: number | null | undefined) {
   const paper = mode === "paper"
-  return `# ACTIVE SESSION: ${sessionLabel(mode)}\n\n**Place cash / Robinhood orders: ${paper ? "NO" : "YES"}**\n**Book:** ${paper ? "Paper training account" : "Live Robinhood cash"}\n**Equity:** ${money(equity)}\n**Cash:** ${money(cash)}\n**1R slot (1%):** ${money(perName)}\n**Tickets folder:** ${paper ? "`Robinhood/Paper/Potential Tickers/`" : "`Robinhood/Potential Tickers/`"}\n\nIf this file says PAPER, do not place or manage cash orders. If this file says LIVE, queued tickets in Potential Tickers may be placed in Robinhood.\n`
+  return `# ACTIVE SESSION: ${sessionLabel(mode)}
+
+**Place cash / Robinhood orders: ${paper ? "NO" : "YES"}**
+**Book:** ${paper ? "Paper training account" : "Live Robinhood cash"}
+**Equity:** ${money(equity)}
+**Cash:** ${money(cash)}
+**1R slot (1%):** ${money(perName)}
+**Tickets folder:** ${paper ? "`Robinhood/Paper/Potential Tickers/`" : "`Robinhood/Potential Tickers/`"}
+
+If this file says PAPER, do not place or manage cash orders. If it says LIVE, queued tickets in Potential Tickers may be placed in Robinhood.
+`
 }
 
 function writeActiveSessionFiles() {
@@ -189,11 +199,11 @@ function buildBrief(reason: HandoffReason, mode: BookMode, snapshot: DeskSnapsho
   const watchLines = watch.length
     ? watch.map((row) => `- ${row.ticker} · ${row.setupType} · ${row.note}`).join("\n")
     : "- none"
-  const uploadLines = uploads.map((row) => `- \\`${row.local}\\` → Drive \\`Grok Trading/${row.drive}\\` (${row.kind})`).join("\n")
+  const uploadLines = uploads.map((row) => `- \`${row.local}\` → Drive \`Grok Trading/${row.drive}\` (${row.kind})`).join("\n")
   const equity = book?.equity ?? active.equity
   const cash = book?.cash ?? active.cash
   const perName = book?.perNameRisk ?? active.riskPct
-  return `${sessionBanner(mode, equity, cash, perName)}\n---\n\n# Trade Desk brief\n\n**Active session:** ${sessionLabel(mode)}\n**Generated:** ${nowPtStamp()}\n**Why this file exists:** Grok Bot ran Trade Desk locally. Upload the paths below to Google Drive (same relative folders). Phone Grok reads handoff/ACTIVE-SESSION.md first.\n\n## Account\n${modeLine}\n\n- Equity: ${money(equity)}\n- Cash: ${money(cash)}\n- Open heat: ${money(book?.openHeat)}\n- Pending heat: ${money(book?.pendingHeat)}\n- Leftover heat: ${money(book?.remainingHeat ?? active.remainingRoom)}\n- 1R slot: ${money(perName)}\n- Scan: ${scan?.fileName ?? "none"}\n- Last action: ${reason}\n\n## Potential\n- Pick: ${pick ? `${pick.ticker} · ${pick.shares} sh · entry ${money(pick.entryPrice)} · stop ${money(pick.stopPrice)} · ${pick.why}` : "none"}\n- Runner-up: ${runner ? `${runner.ticker} · ${runner.shares} sh · entry ${money(runner.entryPrice)} · stop ${money(runner.stopPrice)}` : "none"}\n\n## Working orders\n${workLines}\n\n## Open positions\n${heldLines}\n\n## Watchlist\n${watchLines}\n\n## Regime\n${snapshot?.regime ? `${snapshot.regime.status} — ${snapshot.regime.reason}` : "n/a"}\n\n${snapshot?.nothingReason ? `## Nothing to take\\n${snapshot.nothingReason}\\n` : ""}## Upload map\nCopy each local file to Google Drive **Grok Trading/** keeping the path. Do not rename. Skip Drive \\`(1)\\` conflict copies.\n\n${uploadLines}\n\n## Do not upload\n- Robinhood OAuth tokens\n- \\`node_modules\\`, \\`.env\\`, \\`.bridge\\`\n`
+  return `${sessionBanner(mode, equity, cash, perName)}\n---\n\n# Trade Desk brief\n\n**Active session:** ${sessionLabel(mode)}\n**Generated:** ${nowPtStamp()}\n**Why this file exists:** Grok Bot ran Trade Desk locally. Upload the paths below to Google Drive (same relative folders). Phone Grok reads handoff/ACTIVE-SESSION.md first.\n\n## Account\n${modeLine}\n\n- Equity: ${money(equity)}\n- Cash: ${money(cash)}\n- Open heat: ${money(book?.openHeat)}\n- Pending heat: ${money(book?.pendingHeat)}\n- Leftover heat: ${money(book?.remainingHeat ?? active.remainingRoom)}\n- 1R slot: ${money(perName)}\n- Scan: ${scan?.fileName ?? "none"}\n- Last action: ${reason}\n\n## Potential\n- Pick: ${pick ? `${pick.ticker} · ${pick.shares} sh · entry ${money(pick.entryPrice)} · stop ${money(pick.stopPrice)} · ${pick.why}` : "none"}\n- Runner-up: ${runner ? `${runner.ticker} · ${runner.shares} sh · entry ${money(runner.entryPrice)} · stop ${money(runner.stopPrice)}` : "none"}\n\n## Working orders\n${workLines}\n\n## Open positions\n${heldLines}\n\n## Watchlist\n${watchLines}\n\n## Regime\n${snapshot?.regime ? `${snapshot.regime.status} — ${snapshot.regime.reason}` : "n/a"}\n\n${snapshot?.nothingReason ? `## Nothing to take\n${snapshot.nothingReason}\n` : ""}## Upload map\nCopy each local file to Google Drive **Grok Trading/** keeping the path. Do not rename. Skip Drive \`(1)\` conflict copies.\n\n${uploadLines}\n\n## Do not upload\n- Robinhood OAuth tokens\n- \`node_modules\`, \`.env\`, \`.bridge\`\n`
 }
 
 export function buildHandoff(reason: HandoffReason = "settings"): { manifest: HandoffManifest; snapshot: DeskSnapshot | null } {
