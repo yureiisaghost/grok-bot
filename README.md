@@ -9,7 +9,7 @@ Personal swing-trading workstation. There is **no database**. State lives as JSO
 | **Grok Bot** | This repo, locally | Run Trade Desk, Save scans, Refresh, Place Order, upload the Drive pack |
 | **Phone Grok** | Google Drive folder `Grok Trading/` | Read the pack, decide, manage **cash or paper** in chat |
 
-Robinhood OAuth tokens stay on the machine that runs the app (`%USERPROFILE%\.grok-trading\`). They never go to GitHub or Drive.
+Robinhood OAuth tokens stay on the machine that runs the app (`%USERPROFILE%\\.grok-trading\\`). They never go to GitHub or Drive.
 
 ---
 
@@ -92,6 +92,7 @@ That file says `# ACTIVE SESSION: LIVE` or `# ACTIVE SESSION: PAPER`, whether ca
 | `handoff/DESK-BRIEF.md` | Equity, heat, pick, held, working |
 | `handoff/GROK-HANDOFF.json` | Exact upload list for Bot |
 | `desk-data/scans/` | Screener keepers + `.active-scan.json` pointer |
+| `desk-data/scans/outcomes/` | Frozen outcome cards (setup + tape fate) |
 | `desk-data/last-refresh.json` | Live desk snapshot |
 | `desk-data/last-refresh-paper.json` | Paper snapshot (survives switching to cash) |
 | `desk-data/paper-account.json` | Paper ledger |
@@ -106,7 +107,7 @@ Copy paths as-is. Do not rename. Skip Drive conflict copies such as `.active-sca
 
 ### Do not upload
 
-- `%USERPROFILE%\.grok-trading\` (OAuth)
+- `%USERPROFILE%\\.grok-trading\\` (OAuth)
 - `Chart Analyzer/node_modules/`, `dist/`, `Temp/`
 - `.env`, `.bridge/`
 
@@ -134,6 +135,18 @@ Grok Trading/                  ← clone root = Drive root
 - **Pass** — failed tape/setup gates; never written to the Desk list
 
 Save writes `desk-data/scans/{date}_scan-N.md` + `.json` and the pointer `.active-scan.json`. Refresh prefers the Archive warehouse (`*_raw.json`) when it exists.
+
+---
+
+## Outcome cards
+
+Frozen Candidate snapshots plus later tape fate. Not a second book. Phone never writes these files.
+
+- Minted on Save into `desk-data/scans/outcomes/{YYYY-MM-DD}_{TICKER}.json` for every Candidate with a valid entry and stop.
+- States: `waiting` → `filled` | `gapped` | `stopped` | `expired` (no fill after 10 sessions).
+- Bot resolves daily after the close: `POST /api/outcomes/resolve`. Daily bars only. Does not rewrite thesis or grader gates.
+- Upload `desk-data/scans/outcomes/` with the scan pack (keepers + pointer + candidates + `regime.json`).
+- Gates stay frozen until the card buckets justify a rule change. Yurei decides that change. Bot does not auto-edit gates.
 
 ---
 
