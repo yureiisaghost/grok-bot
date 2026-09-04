@@ -11,14 +11,15 @@ export const ARCHIVE_DIR = path.join(SCANS_DIR, "Archive")
 export const OUTCOMES_DIR = path.join(SCANS_DIR, "outcomes")
 export const ACTIVE_FILE = path.join(SCANS_DIR, ".active-scan.json")
 export const LAST_REFRESH_FILE = path.join(DESK_DIR, "last-refresh.json")
-export const LAST_REFRESH_PAPER_FILE = path.join(DESK_DIR, "last-refresh-paper.json")
 export const SETTINGS_FILE = path.join(DESK_DIR, "settings.json")
 export const ACCOUNT_FILE = path.join(DESK_DIR, "account.json")
-export const PAPER_ACCOUNT_FILE = path.join(DESK_DIR, "paper-account.json")
 export const REGIME_FILE = path.join(DESK_DIR, "regime.json")
 export const WATCHES_FILE = path.join(DESK_DIR, "watches.json")
 export const MACRO_OVERRIDE_FILE = path.join(DESK_DIR, "macro-calendar.json")
 export const SCAN_PROGRESS_FILE = path.join(SCANS_DIR, ".scan-progress.json")
+/** Yurei drops the TradingView screener CSV here. Bot does not download TradingView. */
+export const SCREENER_UPLOADS_DIR = path.join(ROOT, "Screener Uploads")
+export const SCREENER_ARCHIVE_DIR = path.join(SCREENER_UPLOADS_DIR, "Archive")
 export const ROBINHOOD_DIR = path.join(ROOT, "Robinhood")
 /** Queued / pending cash tickets after Yurei says take. Not the Bot scan pack. */
 export const TICKETS_DIR = path.join(ROBINHOOD_DIR, "Tickets")
@@ -37,11 +38,11 @@ export type QueueDirs = {
   driveFilled: string
 }
 
-export function snapshotFile(_mode?: "live" | "paper") {
+export function snapshotFile() {
   return LAST_REFRESH_FILE
 }
 
-export function queueDirs(_mode?: "live" | "paper"): QueueDirs {
+export function queueDirs(): QueueDirs {
   return {
     potential: TICKETS_DIR,
     filled: FILLED_DIR,
@@ -59,6 +60,8 @@ export function ensureDeskDirs() {
   fs.mkdirSync(ARCHIVE_DIR, { recursive: true })
   fs.mkdirSync(OUTCOMES_DIR, { recursive: true })
   fs.mkdirSync(HANDOFF_DIR, { recursive: true })
+  fs.mkdirSync(SCREENER_UPLOADS_DIR, { recursive: true })
+  fs.mkdirSync(SCREENER_ARCHIVE_DIR, { recursive: true })
 }
 
 export function ensureRobinhoodDirs() {

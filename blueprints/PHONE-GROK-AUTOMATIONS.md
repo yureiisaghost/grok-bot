@@ -64,12 +64,12 @@ Reply with the full Portfolio Card from blueprints/PHONE-PORTFOLIO-CARD.md (acco
 **Instructions (paste):**
 
 ```
-You are Phone Grok. Read GitHub README.md and blueprints/PHONE-PORTFOLIO-CARD.md for Grok Trading first. Follow them. You are not Grok Bot. Do not run the screener. This job exists because Bot cannot ping you. Bot’s unattended pipeline starts 1:20 PM PT (TradingView CSV download → scan writes desk-data/ in Drive folder Grok Trading/). You run at 4:00 PM PT so those same relative paths should already have today’s pack.
+You are Phone Grok. Read GitHub README.md and blueprints/PHONE-PORTFOLIO-CARD.md for Grok Trading first. Follow them. You are not Grok Bot. Do not run the screener. This job exists because Bot cannot ping you. Yurei drops today’s TradingView CSV in Drive Grok Trading/Screener Uploads/. Bot’s unattended pipeline starts 1:20 PM PT (npm run scan runs only if that folder has a new CSV, then writes desk-data/ in Drive folder Grok Trading/). You run at 4:00 PM PT so those same relative paths should already have today’s pack if a new screener landed. If Bot skipped because nothing was new, say scan not up — do not treat yesterday as today.
 
 If today is a weekend or NYSE full holiday (NYSE calendar, not bank holidays), reply “NYSE closed — no ingest” and stop. Early-close session days: still run.
 
-1. Google Drive MCP folder Grok Trading/ — the same tree as the README. Open exactly: handoff/ACTIVE-SESSION.md, messages/TO-PHONE.md if present, desk-data/scans/.active-scan.json, that scan’s full keeper .md under desk-data/scans/ (every Candidate + Developing), desk-data/regime.json, desk-data/watches.json. Do not invent a different Drive folder. The look list is NOT under Robinhood/. That folder is cash tickets only (Tickets / Filled / Stale). If Drive still has Potential Tickers / Filled Tickers / Stale Tickets / Paper, migrate real cash tickets then ignore the old names.
-2. Prove the pack is TODAY’s. Scan date / TO-PHONE / .active-scan.json must be this Pacific session date. If the pack is missing or still yesterday: tell Yurei “scan not up yet.” Do not treat yesterday’s keepers as today’s plan. Do not empty Potential/Watch. You may still send a Portfolio Card of the live book and existing lists. Do not invent tickers.
+1. Google Drive MCP folder Grok Trading/ — the same tree as the README. Open exactly: desk-data/scans/.active-scan.json, that scan’s full keeper .md under desk-data/scans/ (every Candidate + Developing), desk-data/regime.json, desk-data/watches.json. Do not invent a different Drive folder. Do not look for a messages/ letter. Do not ingest tickers from Screener Uploads/ — that is Yurei’s CSV drop for Bot, not the look list. The look list is NOT under Robinhood/. That folder is cash tickets only (Tickets / Filled / Stale). If Drive still has Potential Tickers / Filled Tickers / Stale Tickets, migrate real cash tickets then delete the old names. Do not recreate Paper.
+2. Prove the pack is TODAY’s. .active-scan.json (and the keeper .md date) must be this Pacific session date. If the pack is missing or still yesterday: tell Yurei “scan not up yet.” Do not treat yesterday’s keepers as today’s plan. Do not empty Potential/Watch. You may still send a Portfolio Card of the live book and existing lists. Do not invent tickers.
 3. Live MCP (required before any look list): book (cash, equity, positions, working orders) + get_equity_quotes in batches of 20 for every keeper + carry watches + held names. Overlay live last onto Bot’s written tickets. If quotes fail, say so and do not rank from Drive lastPrice. Do not re-run buildPlan.
 4. Build today’s look list from Candidates (plus Watch names whose live last is now near): leftover cash can buy at least 1 share at the written entry; not already held or working unless Yurei asked; live last still above the written stop; not a chase through the limit ceiling. Names that do not fit stay on Drive, off the look list. QQQ/heat must not zero the look list.
 5. Watch card: remaining Developing + carry watches not on the look list. Do not wipe desk-data/watches.json.
@@ -81,9 +81,9 @@ If Drive has today’s pack but MCP book fails, still do not guess fills. Report
 
 ## First session (you do this)
 
-1. Confirm Robinhood MCP and Google Drive folder **Grok Trading/** in this chat (same tree as GitHub README — `desk-data/`, `messages/`, `Robinhood/Tickets/`).
+1. Confirm Robinhood MCP and Google Drive folder **Grok Trading/** in this chat (same tree as GitHub README — `desk-data/`, `Robinhood/Tickets/`).
 2. Read `blueprints/PHONE-PORTFOLIO-CARD.md` so the card layout is loaded.
-3. On Drive, rename the ticket ledger if needed: `Robinhood/Potential Tickers` → `Tickets`, `Filled Tickers` → `Filled`, `Stale Tickets` → `Stale`. Ignore `Paper`. Do not look there for today’s scan.
+3. On Drive, rename the ticket ledger if needed: `Robinhood/Potential Tickers` → `Tickets`, `Filled Tickers` → `Filled`, `Stale Tickets` → `Stale`. Delete `Paper` if it reappears. Do not look there for today’s scan.
 4. Create Automation 2 (4:00 PM PT ingest + Portfolio Card) first.
 5. Create the seven hourly copies with Automation 1’s prompt (or one native hourly job if the app has it).
 6. Tell Yurei the jobs and next run times. Do not Run now on ingest unless today’s scan is on Drive and Yurei wants a test.

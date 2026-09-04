@@ -4,11 +4,12 @@ import path from "node:path"
 import { randomUUID } from "node:crypto"
 import { buildPlan } from "./analyze"
 import { rowsFromCsvText, isCheapCsvPrice } from "./csv"
-import { SCAN_PROGRESS_FILE, SCANS_DIR, ensureDeskDirs } from "./deskPaths"
+import { SCAN_PROGRESS_FILE, SCANS_DIR, SCREENER_UPLOADS_DIR, ensureDeskDirs, posixRel } from "./deskPaths"
 import { savePlans } from "./markdown"
 import { DataError } from "./market"
 import { mintFromActiveScan } from "./outcomes"
 import { NeedsAuthError, fetchMarketPack } from "./rhMcp"
+import { DEFAULT_WAIT_MS, maintainScreenerFolder, tidyScreenerFolderOnSkip, waitForNewCsv } from "./screenerCsv"
 import { ensureWatchesFile, writeTapeCard } from "./tape"
 import type { PlanOfAttack } from "../src/types"
 
@@ -23,6 +24,7 @@ interface Progress {
 function parseArgs(argv: string[]) {
   let csvPath = ""
   let resume = false
+  let waitMinutes: number | null = null
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === "--resume") resume = true
@@ -30,9 +32,13 @@ function parseArgs(argv: string[]) {
       csvPath = argv[i + 1] ?? ""
       i += 1
     } else if (arg.startsWith("--csv=")) csvPath = arg.slice(6)
+    else if (arg === "--wait-minutes") {
+      waitMinutes = Number(argv[i + 1] ?? "")
+      i += 1
+    } else if (arg.startsWith("--wait-minutes=")) waitMinutes = Number(arg.slice(15))
     else if (!arg.startsWith("-") && !csvPath) csvPath = arg
   }
-  return { csvPath: csvPath.trim(), resume }
+  return { csvPath: csvPath.trim(), resume, waitMinutes }
 }
 
 function loadProgress(): Progress | null {
@@ -59,15 +65,34 @@ async function gradeOne(ticker: string): Promise<PlanOfAttack> {
 }
 
 async function main() {
-  const { csvPath, resume } = parseArgs(process.argv.slice(2))
-  if (!csvPath) {
-    console.error("Usage: npm run scan -- --csv \"path\\to\\screener.csv\" [--resume]")
-    process.exit(1)
-  }
-  const absCsv = path.resolve(csvPath)
-  if (!fs.existsSync(absCsv)) {
-    console.error(`CSV not found: ${absCsv}`)
-    process.exit(1)
+  const { csvPath, resume, waitMinutes } = parseArgs(process.argv.slice(2))
+  ensureDeskDirs()
+
+  let absCsv = ""
+  let fromUploadsDrop = false
+  if (csvPath) {
+    absCsv = path.resolve(csvPath)
+    if (!fs.existsSync(absCsv)) {
+      console.error(`CSV not found: ${absCsv}`)
+      process.exit(1)
+    }
+  } else {
+    const waitMs = typeof waitMinutes === "number" && Number.isFinite(waitMinutes)
+      ? Math.max(0, waitMinutes) * 60_000
+      : DEFAULT_WAIT_MS
+    const found = await waitForNewCsv(SCREENER_UPLOADS_DIR, {
+      waitMs,
+      log: (line) => console.log(line),
+    })
+    if (!found) {
+      const archived = tidyScreenerFolderOnSkip(SCREENER_UPLOADS_DIR)
+      if (archived.length) console.log(`[scan] archived ${archived.length} extra screener file(s) to Screener Uploads/Archive/`)
+      console.log("[scan] no new screener in Screener Uploads/. Skip.")
+      process.exit(0)
+    }
+    absCsv = found.abs
+    fromUploadsDrop = true
+    console.log(`[scan] new screener ${posixRel(absCsv)}`)
   }
 
   const rows = rowsFromCsvText(fs.readFileSync(absCsv, "utf8"))
@@ -183,6 +208,15 @@ async function main() {
   console.log("[scan] upload to Drive Grok Trading/:")
   for (const file of uploads) console.log(`  ${file}`)
   console.log("[scan] Phone Grok reads the full keeper .md. Do not trim. Do not Place Order.")
+
+  const uploadsRoot = path.resolve(SCREENER_UPLOADS_DIR)
+  const scanned = path.resolve(absCsv)
+  if (fromUploadsDrop || scanned === uploadsRoot || scanned.startsWith(uploadsRoot + path.sep)) {
+    const { archived } = maintainScreenerFolder(SCREENER_UPLOADS_DIR, absCsv)
+    if (archived.length) {
+      console.log(`[scan] archived ${archived.length} old screener(s) to Screener Uploads/Archive/`)
+    }
+  }
 
   clearProgress()
 }

@@ -26,7 +26,6 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   maxHeatPct: 6,
   maxNewNames: 2,
   bookMode: "live",
-  paperStartingCash: 1000,
 }
 
 export interface BookPosition {
@@ -89,15 +88,11 @@ function clampSettings(raw: Partial<DeskSettings> | null | undefined): DeskSetti
   const riskPct = finite(raw?.riskPct) ? raw.riskPct : DEFAULT_SETTINGS.riskPct
   const maxHeatPct = finite(raw?.maxHeatPct) ? raw.maxHeatPct : DEFAULT_SETTINGS.maxHeatPct
   const maxNewNames = finite(raw?.maxNewNames) ? raw.maxNewNames : DEFAULT_SETTINGS.maxNewNames
-  const paperStartingCash = finite(raw?.paperStartingCash)
-    ? raw.paperStartingCash
-    : DEFAULT_SETTINGS.paperStartingCash
   return {
     riskPct: Math.min(5, Math.max(0.25, riskPct)),
     maxHeatPct: Math.min(20, Math.max(1, maxHeatPct)),
     maxNewNames: Math.round(Math.min(5, Math.max(1, maxNewNames))),
     bookMode: "live",
-    paperStartingCash: Math.min(1_000_000, Math.max(1_000, paperStartingCash)),
   }
 }
 
@@ -400,7 +395,7 @@ export function pickForBook(
   if (!allocated.length && !working.length) {
     if (!plans.length) {
       nothingStep = 0
-      nothingReason = "No keeper list yet. Bot runs npm run scan -- --csv, then Phone filters against leftover cash."
+      nothingReason = "No keeper list yet. Bot runs npm run scan when a new CSV lands in Screener Uploads/, then Phone filters against leftover cash."
     } else if (deskBook.remainingHeat < 0.01) {
       nothingStep = 4
       nothingReason = "Heat guideline is full. Phone still presents capital-fit names; Yurei says take or skip."

@@ -135,7 +135,7 @@ export interface PlanOfAttack {
   heldChart?: boolean
 }
 
-export type BookMode = "live" | "paper"
+export type BookMode = "live"
 
 export interface AppStatus {
   source: string
@@ -145,7 +145,7 @@ export interface AppStatus {
   queue: QueueStatus
   book: {
     bookMode: BookMode
-    label: "LIVE" | "PAPER"
+    label: "LIVE"
     placeCashOrders: boolean
     equity: number | null
     cash: number | null
@@ -176,7 +176,6 @@ export interface DeskSettings {
   maxHeatPct: number
   maxNewNames: number
   bookMode: BookMode
-  paperStartingCash: number
 }
 
 export interface DeskPosition {
@@ -359,7 +358,6 @@ export interface HandoffManifest {
     readFirst: string
     active: BookMode
     placeCashOrders: boolean
-    doNotPlaceCashIfPaper: boolean
   }
   neverUpload: string[]
   folders: DriveFolderGuide[]

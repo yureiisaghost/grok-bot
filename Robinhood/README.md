@@ -8,8 +8,8 @@ This folder is **not** the Bot → Phone pack. Grok Bot does not upload scans he
 | `Filled/` | Phone (or leftover Desk sync) | Ticket after the buy fills |
 | `Stale/` | Phone | Dead, skipped, or never-placed tickets |
 
-The pack Phone reads for the **Portfolio Card** lives under `desk-data/scans/`, `desk-data/regime.json`, `desk-data/watches.json`, and `messages/TO-PHONE.md` in Drive folder **`Grok Trading/`** (this clone). Live prices and the cash book come from Robinhood MCP, not from these files.
+The pack Phone reads for the **Portfolio Card** lives under `desk-data/scans/`, `desk-data/regime.json`, and `desk-data/watches.json` in Drive folder **`Grok Trading/`** (this clone). Live prices and the cash book come from Robinhood MCP, not from these files.
 
 The in-app lists named **Potential** and **Watch** are not folders in here.
 
-Ignore `Paper/`, `Potential Tickers/`, `Filled Tickers/`, and `Stale Tickets/` if they still exist — old names.
+If Drive still has `Potential Tickers/`, `Filled Tickers/`, or `Stale Tickets/`, migrate real cash tickets then delete those folders. Do not recreate `Paper/`.

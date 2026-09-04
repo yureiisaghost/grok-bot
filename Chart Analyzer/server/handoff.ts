@@ -270,7 +270,6 @@ export function buildHandoff(reason: HandoffReason = "settings"): { manifest: Ha
         readFirst: "handoff/ACTIVE-SESSION.md",
         active: "live",
         placeCashOrders: true,
-        doNotPlaceCashIfPaper: false,
       },
       neverUpload: NEVER_UPLOAD,
       folders: DRIVE_FOLDERS,

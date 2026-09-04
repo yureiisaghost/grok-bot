@@ -9,3 +9,31 @@
 *.tsbuildinfo
 **/.vite/
 Chart Analyzer/Temp/
+
+# Scan packs live on Drive. GitHub is protocol + code only.
+desk-data/scans/**
+!desk-data/scans/.gitkeep
+!desk-data/scans/Archive/
+!desk-data/scans/Archive/.gitkeep
+!desk-data/scans/outcomes/
+!desk-data/scans/outcomes/.gitkeep
+desk-data/regime.json
+desk-data/watches.json
+
+# Yurei's TradingView CSV drop. Keep the folder README; ignore the exports.
+Screener Uploads/*
+!Screener Uploads/README.md
+!Screener Uploads/Archive/
+Screener Uploads/Archive/*
+!Screener Uploads/Archive/.gitkeep
+
+# Retired Bot↔Phone mailbox. Do not commit letters if Drive restores the folder.
+messages/
+
+# Paper is gone. Do not commit a restored trainer ledger.
+desk-data/paper-account.json
+desk-data/last-refresh-paper.json
+Robinhood/Paper/
+
+# Drive Desktop duplicate copies
+**/* (1).*

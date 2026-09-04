@@ -445,7 +445,6 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
     maxHeatPct: 6,
     maxNewNames: 2,
     bookMode: "live",
-    paperStartingCash: 1000,
   })
   const [snapshot, setSnapshot] = useState<DeskSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)

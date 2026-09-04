@@ -1,0 +1,14 @@
+{
+  "schema": "grok-trading-session/v1",
+  "active": "live",
+  "label": "LIVE",
+  "placeCashOrders": true,
+  "equity": null,
+  "cash": null,
+  "perNameRisk": null,
+  "remainingHeat": null,
+  "maxHeat": null,
+  "ticketsFolder": "Robinhood/Tickets",
+  "updatedAt": "09/04/2026 09:45 PT",
+  "instruction": "Live Grok Trading cash book. Phone Grok filters keepers against leftover capital from Robinhood MCP. Wait for Yurei before placing. This file is not the book."
+}

@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { buildPlan } from "./analyze"
@@ -8,6 +9,7 @@ import { atr, ema, last } from "./indicators"
 import { lastHigherLow, writeStructuralStop } from "./stopWriter"
 import { priorThrust60d } from "./thrust"
 import { isCheapCsvPrice, rowsFromCsvText } from "./csv"
+import { isDriveDuplicateName, loadLastUsed, maintainScreenerFolder, pickNewCsv, writeLastUsed } from "./screenerCsv"
 import type { OhlcvBar } from "../src/types"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -311,6 +313,62 @@ const noPrice = rowsFromCsvText("Symbol,Name\nDDD,Foo\n")
 if (noPrice[0]?.price != null || isCheapCsvPrice(noPrice[0]!)) {
   failed += 1
   console.error("FAIL no price column must not skip")
+}
+
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "screener-uploads-"))
+  try {
+    if (isDriveDuplicateName("screener (1).csv") !== true) {
+      failed += 1
+      console.error("FAIL drive duplicate name")
+    }
+    fs.writeFileSync(path.join(dir, "current.csv"), "Symbol\nOLD\n")
+    const current = pickNewCsv(dir)
+    if (!current || current.name !== "current.csv") {
+      failed += 1
+      console.error("FAIL first drop is new", current)
+    } else {
+      writeLastUsed(dir, current)
+    }
+    if (pickNewCsv(dir)) {
+      failed += 1
+      console.error("FAIL same screener must not look new")
+    }
+    fs.writeFileSync(path.join(dir, "fresh.csv"), "Symbol\nNOW\n")
+    fs.writeFileSync(path.join(dir, "screener (1).csv"), "Symbol\nDUP\n")
+    const fresh = pickNewCsv(dir)
+    if (!fresh || fresh.name !== "fresh.csv") {
+      failed += 1
+      console.error("FAIL pick new screener", fresh)
+    } else {
+      const { archived } = maintainScreenerFolder(dir, fresh.abs)
+      if (!fs.existsSync(fresh.abs) || fs.existsSync(path.join(dir, "current.csv")) || fs.existsSync(path.join(dir, "screener (1).csv"))) {
+        failed += 1
+        console.error("FAIL archive should leave only current csv")
+      }
+      if (archived.length < 2) {
+        failed += 1
+        console.error("FAIL expected old + duplicate archived", archived)
+      }
+      const last = loadLastUsed(dir)
+      if (!last || last.name !== "fresh.csv") {
+        failed += 1
+        console.error("FAIL last-used pointer", last)
+      }
+      if (pickNewCsv(dir)) {
+        failed += 1
+        console.error("FAIL current after maintain must not look new")
+      }
+      fs.writeFileSync(path.join(dir, "fresh.csv"), "Symbol\nAAA\nBBB\n")
+      const overwritten = pickNewCsv(dir)
+      if (!overwritten || overwritten.name !== "fresh.csv") {
+        failed += 1
+        console.error("FAIL overwrite of current screener must look new", overwritten)
+      }
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 function loadPack(ticker: string): MarketPack | null {

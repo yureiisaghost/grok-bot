@@ -2,6 +2,5 @@
   "riskPct": 1,
   "maxHeatPct": 6,
   "maxNewNames": 2,
-  "bookMode": "live",
-  "paperStartingCash": 1000
+  "bookMode": "live"
 }
