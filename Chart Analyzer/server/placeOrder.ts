@@ -6,7 +6,6 @@ import { ensureRobinhoodDirs, queueDirs } from "./deskPaths"
 import { writeHandoff } from "./handoff"
 import { nowPtStamp } from "./http"
 import { DataError, requestTicker } from "./market"
-import { addPaperPending } from "./paperAccount"
 import { ticketMarkdown } from "./potentialQueue"
 
 function fileStem(ticker: string) {
@@ -25,7 +24,6 @@ export async function queuePotentialOrder(rawTicker: string): Promise<PlaceOrder
   const ticker = requestTicker(rawTicker)
   const state = readDeskState()
   const snapshot = state.snapshot
-  const bookMode = state.settings.bookMode
   if (!snapshot) {
     throw new DataError("Refresh the desk first, then Place Order on a Potential.", 400, "validate")
   }
@@ -36,21 +34,18 @@ export async function queuePotentialOrder(rawTicker: string): Promise<PlaceOrder
 
   const plan = readDeskPlan(ticker)
   const queuedAt = nowPtStamp()
-  const paper = bookMode === "paper"
-  const status = paper ? "pending" as const : "queued" as const
-  const dirs = queueDirs(bookMode)
+  const status = "queued" as const
+  const dirs = queueDirs()
   const packet = {
     kind: "potential-order" as const,
     status,
-    bookMode,
+    bookMode: "live" as const,
     queuedAt,
     ticker,
     role: matched.role,
     source: "trade-desk",
     driveFolder: dirs.drivePotential,
-    instruction: paper
-      ? "PAPER. Do not place this order in Robinhood cash. Trade Desk fills it on Refresh when last trades through the trigger."
-      : "Place and monitor this order in Robinhood from the ticket below. Do not change the share count, stop, or entry method unless the ticket is invalid.",
+    instruction: "Place and monitor this order in Robinhood from the ticket below. Wait for Yurei to say take. Do not change the share count, stop, or entry method unless the ticket is invalid.",
     ticket: {
       side: "buy" as const,
       shares: matched.pick.shares,
@@ -66,7 +61,7 @@ export async function queuePotentialOrder(rawTicker: string): Promise<PlaceOrder
       notional: matched.pick.notional,
       lastPrice: matched.pick.lastPrice,
     },
-    pick: { ...matched.pick, orderStatus: status, brokerState: paper ? "paper" : null },
+    pick: { ...matched.pick, orderStatus: status, brokerState: null },
     plan,
     book: snapshot.book,
     regime: snapshot.regime,
@@ -85,10 +80,9 @@ export async function queuePotentialOrder(rawTicker: string): Promise<PlaceOrder
     role: matched.role,
     pick: packet.pick,
     plan,
-    bookMode,
+    bookMode: "live",
   }), "utf8")
 
-  if (paper) addPaperPending(matched.pick, matched.role, queuedAt)
   noteWorkingPick(packet.pick, status)
 
   writeHandoff("place-order")
@@ -96,7 +90,7 @@ export async function queuePotentialOrder(rawTicker: string): Promise<PlaceOrder
   return {
     ticker,
     role: matched.role,
-    bookMode,
+    bookMode: "live",
     path: dirs.potential,
     driveFolder: dirs.drivePotential,
     jsonFile,

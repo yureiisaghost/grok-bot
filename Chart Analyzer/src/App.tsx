@@ -1,18 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import { ApiError, connectRobinhood, fetchStatus } from "./api"
 import { DeskApp, type DeskHandle } from "./desk/DeskApp"
-import ScreenerApp from "./screener/ScreenerApp"
-import type { BookMode } from "./types"
-
-type Tab = "desk" | "screener"
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("desk")
   const [connected, setConnected] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [bookMode, setBookMode] = useState<BookMode>("live")
   const deskRef = useRef<DeskHandle>(null)
 
   function openAuth(authUrl: string | null | undefined) {
@@ -50,7 +44,6 @@ export default function App() {
   }
 
   async function onRefresh() {
-    setTab("desk")
     setRefreshing(true)
     setError(null)
     try {
@@ -68,41 +61,7 @@ export default function App() {
         <div className="brand">
           <h1>Trade Desk</h1>
         </div>
-        <nav className="shell-nav" aria-label="Mode">
-          <button
-            className={`btn ${tab === "desk" ? "primary" : ""}`}
-            type="button"
-            aria-current={tab === "desk" ? "page" : undefined}
-            onClick={() => setTab("desk")}
-          >
-            Desk
-          </button>
-          <button
-            className={`btn ${tab === "screener" ? "primary" : ""}`}
-            type="button"
-            aria-current={tab === "screener" ? "page" : undefined}
-            onClick={() => setTab("screener")}
-          >
-            Screener
-          </button>
-        </nav>
         <div className="header-meta shell-actions">
-          <div className="mode-toggle" role="group" aria-label="Account book">
-            <button
-              type="button"
-              className={bookMode === "live" ? "is-on" : ""}
-              onClick={() => void deskRef.current?.setBookMode("live")}
-            >
-              Live
-            </button>
-            <button
-              type="button"
-              className={bookMode === "paper" ? "is-on is-paper" : ""}
-              onClick={() => void deskRef.current?.setBookMode("paper")}
-            >
-              Paper
-            </button>
-          </div>
           <span>
             Robinhood <strong>{connected ? "connected" : "not connected"}</strong>
           </span>
@@ -122,26 +81,20 @@ export default function App() {
         </div>
       </header>
 
-      {error && tab === "desk" && <div className="banner">{error}</div>}
+      {error && <div className="banner">{error}</div>}
 
-      <div hidden={tab !== "desk"}>
-        <DeskApp
-          ref={deskRef}
-          connected={connected}
-          onNeedsAuth={(authUrl) => {
-            setConnected(false)
-            openAuth(authUrl)
-          }}
-          onRefreshed={() => {
-            setConnected(true)
-            setRefreshing(false)
-          }}
-          onBookMode={setBookMode}
-        />
-      </div>
-      <div hidden={tab !== "screener"}>
-        <ScreenerApp bookMode={bookMode} />
-      </div>
+      <DeskApp
+        ref={deskRef}
+        connected={connected}
+        onNeedsAuth={(authUrl) => {
+          setConnected(false)
+          openAuth(authUrl)
+        }}
+        onRefreshed={() => {
+          setConnected(true)
+          setRefreshing(false)
+        }}
+      />
     </div>
   )
 }

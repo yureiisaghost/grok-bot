@@ -6,7 +6,6 @@ export default defineConfig({
   plugins: [react(), analyzerApiPlugin()],
   optimizeDeps: {
     exclude: ["@modelcontextprotocol/client"],
-    include: ["tesseract.js"],
   },
   server: {
     host: "127.0.0.1",

@@ -1,14 +1,10 @@
-import type { ScanRow } from "../types"
-import { mergeScanRows, queuedRow } from "./scan"
-
 const SYMBOL_HEADER = /^(symbol|ticker)$/
 const TICKER_CELL = /^[A-Z][A-Z0-9.]{0,9}$/
 
-export function isScreenerCsv(file: File) {
-  const name = file.name.toLowerCase()
-  if (name.endsWith(".csv")) return true
-  const type = file.type.toLowerCase()
-  return type === "text/csv" || type === "application/csv"
+export interface CsvRow {
+  ticker: string
+  name: string | null
+  price: number | null
 }
 
 export function parseCsv(text: string): string[][] {
@@ -96,11 +92,6 @@ function mapColumns(header: string[]) {
     symbol: symbol >= 0 ? symbol : 0,
     name: findCol(headers, (h) => h === "description" || h === "name"),
     price: findCol(headers, (h) => h === "price"),
-    change1d: findCol(headers, (h) => (h.includes("price change") && h.includes("1 day")) || h === "change %" || h === "chg %"),
-    perf1w: findCol(headers, (h) => h.includes("performance") && h.includes("1 week")),
-    perf1m: findCol(headers, (h) => h.includes("performance") && h.includes("1 month")),
-    vol1w: findCol(headers, (h) => h.includes("volatility") && h.includes("1 week")),
-    vol1m: findCol(headers, (h) => h.includes("volatility") && h.includes("1 month")),
   }
 }
 
@@ -109,45 +100,26 @@ function cell(row: string[], index: number) {
   return row[index]
 }
 
-export function rowsFromCsvText(text: string, source: string): ScanRow[] {
+/** CSV price column present and under $5. Do not skip when price is missing. */
+export function isCheapCsvPrice(row: CsvRow) {
+  return row.price != null && Number.isFinite(row.price) && row.price > 0 && row.price < 5
+}
+
+export function rowsFromCsvText(text: string): CsvRow[] {
   const table = parseCsv(text)
   if (table.length < 2) return []
   const cols = mapColumns(table[0])
   const seen = new Set<string>()
-  const rows: ScanRow[] = []
+  const rows: CsvRow[] = []
   for (const row of table.slice(1)) {
     const ticker = asTicker(cell(row, cols.symbol) ?? "")
     if (!ticker || seen.has(ticker)) continue
     seen.add(ticker)
-    rows.push(queuedRow({
+    rows.push({
       ticker,
       name: asText(cell(row, cols.name)),
       price: asNumber(cell(row, cols.price)),
-      change1d: asNumber(cell(row, cols.change1d)),
-      perf1w: asNumber(cell(row, cols.perf1w)),
-      perf1m: asNumber(cell(row, cols.perf1m)),
-      vol1w: asNumber(cell(row, cols.vol1w)),
-      vol1m: asNumber(cell(row, cols.vol1m)),
-      source,
-    }))
+    })
   }
   return rows
-}
-
-export function tickersFromCsvText(text: string): string[] {
-  return rowsFromCsvText(text, "csv").map((row) => row.ticker)
-}
-
-export async function readScreenerFiles(files: File[]) {
-  const names: string[] = []
-  let rows: ScanRow[] = []
-  for (const file of files) {
-    const found = rowsFromCsvText(await file.text(), file.name)
-    if (!found.length) {
-      throw new Error(`No Symbol column tickers found in ${file.name}. Export the TradingView screener as CSV.`)
-    }
-    names.push(file.name)
-    rows = mergeScanRows(rows, found)
-  }
-  return { rows, files: names }
 }

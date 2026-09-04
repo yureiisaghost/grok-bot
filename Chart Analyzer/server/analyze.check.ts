@@ -7,8 +7,7 @@ import type { MarketPack } from "./market"
 import { atr, ema, last } from "./indicators"
 import { lastHigherLow, writeStructuralStop } from "./stopWriter"
 import { priorThrust60d } from "./thrust"
-import { isCheapCsvPrice, mergeScanRows, pendingTickers } from "../src/lib/scan"
-import { rowsFromCsvText } from "../src/lib/screener"
+import { isCheapCsvPrice, rowsFromCsvText } from "./csv"
 import type { OhlcvBar } from "../src/types"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -299,7 +298,7 @@ checkPlan(
   "flag whose only invalidation is still 12% / 2 ATR must not dock",
 )
 
-const csvRows = rowsFromCsvText("Symbol,Price\nAAA,12.5\nBBB,4.50\nCCC,\n", "tv.csv")
+const csvRows = rowsFromCsvText("Symbol,Price\nAAA,12.5\nBBB,4.50\nCCC,\n")
 if (csvRows.length !== 3 || csvRows[0].price !== 12.5 || csvRows[1].price !== 4.5 || csvRows[2].price !== null) {
   failed += 1
   console.error("FAIL csv price parse", csvRows)
@@ -308,25 +307,10 @@ if (!isCheapCsvPrice(csvRows[1]) || isCheapCsvPrice(csvRows[0]) || isCheapCsvPri
   failed += 1
   console.error("FAIL cheap csv price gate")
 }
-const noPrice = rowsFromCsvText("Symbol,Name\nDDD,Foo\n", "noprice.csv")
+const noPrice = rowsFromCsvText("Symbol,Name\nDDD,Foo\n")
 if (noPrice[0]?.price != null || isCheapCsvPrice(noPrice[0]!)) {
   failed += 1
   console.error("FAIL no price column must not skip")
-}
-const skippedRow = { ...csvRows[1], status: "skipped" as const, failReason: "price<5", grade: null, score: null, setupType: null }
-if (pendingTickers([skippedRow]).length !== 0) {
-  failed += 1
-  console.error("FAIL skipped cheap names must not retry as pending")
-}
-const requeued = mergeScanRows([skippedRow], rowsFromCsvText("Symbol,Price\nBBB,12\n", "tv2.csv"))
-if (requeued[0]?.status !== "queued" || requeued[0]?.price !== 12) {
-  failed += 1
-  console.error("FAIL skipped name with new price>=5 should requeue", requeued[0])
-}
-const stillSkip = mergeScanRows([skippedRow], rowsFromCsvText("Symbol,Price\nBBB,3\n", "tv3.csv"))
-if (stillSkip[0]?.status !== "skipped") {
-  failed += 1
-  console.error("FAIL skipped name still under $5 should stay skipped", stillSkip[0])
 }
 
 function loadPack(ticker: string): MarketPack | null {

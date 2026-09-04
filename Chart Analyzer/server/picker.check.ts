@@ -147,7 +147,8 @@ const full = pickForBook([a], {
     marketValue: 10,
   })),
 })
-check("heat full returns nothing", full.pick == null && /heat is full/i.test(full.nothingReason ?? ""), full.nothingReason ?? "none")
+check("heat full still shows the pick card", full.pick != null, full.pick?.ticker ?? "none")
+check("heat full pick stays actionable", full.pick?.actionable !== false, String(full.pick?.actionable))
 
 const closed = pickForBook([a], book, { riskPct: 1, maxHeatPct: 6, maxNewNames: 2 }, {
   regime: {
@@ -160,9 +161,10 @@ const closed = pickForBook([a], book, { riskPct: 1, maxHeatPct: 6, maxNewNames: 
     reason: "Regime closed. Index 10/20 is not stacked. No new heat.",
   },
 })
-check("regime closed returns nothing", closed.pick == null && /regime closed/i.test(closed.nothingReason ?? ""), closed.nothingReason ?? "none")
+check("regime closed still shows the pick card", closed.pick != null, closed.pick?.ticker ?? "none")
+check("regime closed pick stays actionable", closed.pick?.actionable !== false, String(closed.pick?.actionable))
+check("regime closed does not empty the book", closed.nothingReason == null, closed.nothingReason ?? "none")
 check("regime closed still shows the book", closed.book.equity === 5000, `equity=${closed.book.equity}`)
-check("regime closed is step 1", closed.nothingStep === 1, `step=${closed.nothingStep}`)
 
 const pressure = pickForBook([a], { ...book, positions: [] }, undefined, {
   regime: {
@@ -175,8 +177,9 @@ const pressure = pickForBook([a], { ...book, positions: [] }, undefined, {
     reason: "Pressure. 7 distribution days in 25 sessions on QQQ. No new heat.",
   },
 })
-check("pressure zeros new heat", pressure.pick == null && /pressure/i.test(pressure.nothingReason ?? ""), pressure.nothingReason ?? "none")
-check("pressure is step 2", pressure.nothingStep === 2, `step=${pressure.nothingStep}`)
+check("pressure still shows the pick card", pressure.pick != null, pressure.pick?.ticker ?? "none")
+check("pressure pick stays actionable", pressure.pick?.actionable !== false, String(pressure.pick?.actionable))
+check("pressure does not empty the book", pressure.nothingReason == null, pressure.nothingReason ?? "none")
 
 const blackout = pickForBook([a], { ...book, positions: [] }, undefined, {
   regime: {
@@ -189,8 +192,9 @@ const blackout = pickForBook([a], { ...book, positions: [] }, undefined, {
     reason: "Macro blackout. FOMC 2026-09-16. No new names.",
   },
 })
-check("blackout zeros new heat", blackout.pick == null && /macro blackout/i.test(blackout.nothingReason ?? ""), blackout.nothingReason ?? "none")
-check("blackout is step 3", blackout.nothingStep === 3, `step=${blackout.nothingStep}`)
+check("blackout still shows the pick card", blackout.pick != null, blackout.pick?.ticker ?? "none")
+check("blackout pick stays actionable", blackout.pick?.actionable !== false, String(blackout.pick?.actionable))
+check("blackout does not empty the book", blackout.nothingReason == null, blackout.nothingReason ?? "none")
 check("blackout still shows the book", blackout.book.equity === 5000, `equity=${blackout.book.equity}`)
 
 check("ticket is stop-limit", (snapshot.pick?.entryMethod ?? "") === "Buy stop-limit" && (snapshot.pick?.stopKind ?? "") === "Stop-market", JSON.stringify({ m: snapshot.pick?.entryMethod, s: snapshot.pick?.stopKind }))

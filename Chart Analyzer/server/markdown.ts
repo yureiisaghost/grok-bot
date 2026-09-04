@@ -1,9 +1,8 @@
 import fs from "node:fs"
 import path from "node:path"
 import type { DeskScanInfo, OhlcvBar, PlanOfAttack } from "../src/types"
-import { readActiveAccount } from "./accountSnapshot"
 import { ACTIVE_FILE, ARCHIVE_DIR, SCANS_DIR as QUEUE_DIR, ensureDeskDirs } from "./deskPaths"
-import { selectFinalists, tallyLine, mergeWarehouse } from "./finalists"
+import { mergeWarehouse } from "./finalists"
 import { writeHandoff } from "./handoff"
 import { nowPtStamp, todayPtIso } from "./http"
 const DATE_FILE = /^(\d{4}-\d{2}-\d{2})(?:_scan-(\d+))?\.md$/i
@@ -25,6 +24,8 @@ interface DockFile {
   scan: number
   generatedAt: string
   tallyLine: string
+  keepers: PlanOfAttack[]
+  /** @deprecated same as Candidate keepers — old Desk readers */
   finalists: PlanOfAttack[]
 }
 
@@ -48,25 +49,14 @@ function warehousePaths(day: string, scan: number) {
   }
 }
 
-function headerFor(day: string, scan: number, kind: "warehouse" | "finalists", stamp = nowPtStamp()) {
+function headerFor(day: string, scan: number, kind: "warehouse" | "keepers", stamp = nowPtStamp()) {
   const title = scan <= 1 ? `# ${day}` : `# ${day} · Scan ${scan}`
-  const book = readActiveAccount()
-  const session = book.bookMode === "paper" ? "PAPER" : "LIVE"
-  const cashLine = book.placeCashOrders ? "cash orders OK" : "do not place cash orders"
-  const bookLine = `**Active session:** ${session} · equity ${money(book.equity)} · leftover heat ${money(book.remainingRoom)} · ${cashLine}`
-  if (kind === "warehouse") {
-    return `${title}
-**Session started:** ${stamp}
-${bookLine}
-**Purpose:** First-pass warehouse (raw) from the Screener. Not the Trade Desk pick. Grades are Candidate/Developing. Refresh on the Desk assigns the pick from this universe.
-
----
-`
-  }
+  const purpose = kind === "warehouse"
+    ? "**Purpose:** First-pass warehouse. Every Candidate and Developing from this scan. Pass never writes. Phone Grok filters against the live Robinhood book."
+    : "**Purpose:** Full keeper list for Phone Grok. Candidate + Developing. No dock trim. Phone live-quotes this list, fits leftover cash, and asks Yurei."
   return `${title}
 **Session started:** ${stamp}
-${bookLine}
-**Purpose:** Screener keeper list (Candidate and near). Sized against the ${session} book. Trade Desk Refresh reads this folder. No 20-name cap. A new scan archives this file.
+${purpose}
 
 ---
 `
@@ -202,7 +192,7 @@ ${retrace}${gates}- **1-share risk:** ${money(risk)}
 - **Warnings:**
 ${warn}
 - **Saved:** ${nowPtStamp()}
-- **Source:** Screener / Robinhood daily bars
+- **Source:** Bot scan / Robinhood daily bars
 
 ${recentDailyBlock(plan, barLimit)}`
 }
@@ -231,27 +221,68 @@ export function queueMeta() {
   return metaFor(null)
 }
 
+function keeperTally(plans: PlanOfAttack[]) {
+  const candidate = plans.filter((plan) => plan.grade === "Candidate").length
+  const developing = plans.filter((plan) => plan.grade === "Developing").length
+  return `**Keepers:** ${candidate} Candidate · ${developing} Developing. Phone Grok is the final filter against the live book. Pass never writes.`
+}
+
+function sortKeepers(plans: PlanOfAttack[]) {
+  return [...plans].sort((a, b) => {
+    const rank = (plan: PlanOfAttack) => (plan.grade === "Candidate" ? 0 : 1)
+    return rank(a) - rank(b) || b.score - a.score || a.ticker.localeCompare(b.ticker)
+  })
+}
+
+function slimKeeper(plan: PlanOfAttack) {
+  return {
+    ticker: plan.ticker,
+    name: plan.name,
+    grade: plan.grade,
+    score: plan.score,
+    setupType: plan.setupType,
+    lastPrice: plan.lastPrice,
+    readiness: plan.readiness,
+    entryMethod: plan.entryMethod,
+    entryTrigger: plan.entryTrigger,
+    invalidation: plan.invalidation,
+    stop: plan.stop,
+    thesis: plan.thesis,
+    plan: plan.plan,
+    earnings: plan.earnings,
+    warnings: plan.warnings,
+    entryPrice: plan.entryPrice,
+    stopPrice: plan.stopPrice,
+    r1: plan.r1,
+    r2: plan.r2,
+    r3: plan.r3,
+    oneShareRisk: plan.oneShareRisk,
+    earnDays: plan.earnDays,
+    qualityScore: plan.qualityScore ?? null,
+    failedGates: plan.failedGates ?? [],
+  }
+}
+
 function composeMarkdown(
   day: string,
   scan: number,
-  kind: "warehouse" | "finalists",
+  kind: "warehouse" | "keepers",
   plans: PlanOfAttack[],
-  result?: ReturnType<typeof selectFinalists>,
   barLimit = RECENT_BARS,
 ) {
   const header = headerFor(day, scan, kind)
-  if (kind === "finalists" && plans.length === 0) {
-    const footer = result ? `${tallyLine(result)}\n` : ""
+  const tally = keeperTally(plans)
+  if (!plans.length) {
     return `${header}
-**Finalists:** 0
+**Keepers:** 0
 
-No names cleared the second-pass dock. The raw warehouse is in Archive. This file is still the working queue.
+No Candidate or Developing names on this scan.
 
-${footer}`.replace(/\n{3,}/g, "\n\n")
+${tally}
+`.replace(/\n{3,}/g, "\n\n")
   }
   const body = plans.map((plan) => blockFor(plan, barLimit)).join("\n")
-  const footer = kind === "finalists" && result ? `\n---\n${tallyLine(result)}\n` : ""
-  return `${header}\n${body}${footer}`.replace(/\n{3,}/g, "\n\n")
+  return `${header}\n${body}\n---\n${tally}\n`.replace(/\n{3,}/g, "\n\n")
 }
 
 function readWarehouse(rawJson: string): PlanOfAttack[] {
@@ -281,30 +312,45 @@ export function savePlans(plans: PlanOfAttack[], scanId = "default") {
   const { filePath, day, scan } = openScan(scanId)
   const { rawMd, rawJson } = warehousePaths(day, scan)
   snapshotFatWorkingFile(filePath, day, scan, fs.existsSync(rawJson))
-  const merged = mergeWarehouse(readWarehouse(rawJson), incoming)
+  const merged = sortKeepers(mergeWarehouse(readWarehouse(rawJson), incoming))
   ensureDirs()
-  const result = selectFinalists(merged, { account: readActiveAccount() })
-  fs.writeFileSync(rawJson, JSON.stringify(result.warehouse), "utf8")
-  fs.writeFileSync(rawMd, composeMarkdown(day, scan, "warehouse", result.warehouse), "utf8")
+  fs.writeFileSync(rawJson, JSON.stringify(merged), "utf8")
+  fs.writeFileSync(rawMd, composeMarkdown(day, scan, "warehouse", merged), "utf8")
   const jsonName = jsonNameFor(day, scan)
   const jsonPath = path.join(QUEUE_DIR, jsonName)
+  const candidates = merged.filter((plan) => plan.grade === "Candidate")
+  const developing = merged.filter((plan) => plan.grade === "Developing")
+  const tallyLine = keeperTally(merged)
   const dock: DockFile = {
     scanId,
     day,
     scan,
     generatedAt: nowPtStamp(),
-    tallyLine: tallyLine(result),
-    finalists: result.finalists,
+    tallyLine,
+    keepers: merged,
+    finalists: candidates,
   }
   fs.writeFileSync(jsonPath, JSON.stringify(dock), "utf8")
-  let md = composeMarkdown(day, scan, "finalists", result.finalists, result)
+  const stem = scanStem(day, scan)
+  const slim = {
+    day,
+    scan,
+    generatedAt: nowPtStamp(),
+    candidateCount: candidates.length,
+    developingCount: developing.length,
+    candidates: candidates.map(slimKeeper),
+    developing: developing.map(slimKeeper),
+  }
+  fs.writeFileSync(path.join(QUEUE_DIR, `${stem}_keepers.json`), JSON.stringify(slim, null, 2), "utf8")
+  fs.writeFileSync(path.join(QUEUE_DIR, `${stem}_candidates.json`), JSON.stringify(slim, null, 2), "utf8")
+  let md = composeMarkdown(day, scan, "keepers", merged)
   if (md.length > SAFE_MD_CHARS) {
-    md = composeMarkdown(day, scan, "finalists", result.finalists, result, RECENT_BARS)
+    md = composeMarkdown(day, scan, "keepers", merged, 10)
   }
   fs.writeFileSync(filePath, md, "utf8")
   writeActive({ scanId, day, scan, file: path.basename(filePath), json: jsonName })
   writeHandoff("save")
-  return metaFor(filePath, merged.length, result.finalists.length)
+  return metaFor(filePath, merged.length, merged.length)
 }
 
 function workingNames() {
@@ -491,6 +537,7 @@ function readDock(jsonPath: string): PlanOfAttack[] {
     if (!fs.existsSync(jsonPath)) return []
     const data = JSON.parse(fs.readFileSync(jsonPath, "utf8")) as DockFile | PlanOfAttack[]
     if (Array.isArray(data)) return data.filter((plan) => plan?.ticker)
+    if (Array.isArray(data.keepers)) return data.keepers.filter((plan) => plan?.ticker)
     return Array.isArray(data.finalists) ? data.finalists.filter((plan) => plan?.ticker) : []
   } catch {
     return []

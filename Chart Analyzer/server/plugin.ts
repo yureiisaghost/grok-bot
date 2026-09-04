@@ -1,16 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { Plugin } from "vite"
-import { buildPlan } from "./analyze"
 import { loadDeskPlan, readDeskState, refreshDesk, writeDeskSettings } from "./desk"
 import { readHandoff } from "./handoff"
 import { readActiveAccount, sessionLabel } from "./accountSnapshot"
 import { readJson, sendJson } from "./http"
-import { clearQueue, queueMeta, savePlan, savePlans } from "./markdown"
-import { DataError, requestTicker } from "./market"
+import { queueMeta } from "./markdown"
+import { DataError } from "./market"
 import { queuePotentialOrder, listQueuedTickers } from "./placeOrder"
-import { mintFromActiveScan, resolveOpenOutcomes } from "./outcomes"
-import { beginMcpConnect, finishMcpAuth, mcpStatus, NeedsAuthError, fetchMarketPack } from "./rhMcp"
-import type { DeskSettings, PlanOfAttack } from "../src/types"
+import { resolveOpenOutcomes } from "./outcomes"
+import { beginMcpConnect, finishMcpAuth, mcpStatus, NeedsAuthError } from "./rhMcp"
+import type { DeskSettings } from "../src/types"
 
 function fail(res: ServerResponse, err: unknown) {
   if (err instanceof NeedsAuthError) {
@@ -46,9 +45,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
           : "Connect Robinhood once in this app. Tokens stay on this PC, not in Google Drive.",
         queue: queueMeta(),
         book: {
-          bookMode: book.bookMode,
-          label: sessionLabel(book.bookMode),
-          placeCashOrders: book.placeCashOrders,
+          bookMode: "live" as const,
+          label: sessionLabel(),
+          placeCashOrders: true,
           equity: book.equity,
           cash: book.cash,
           remainingHeat: book.remainingRoom,
@@ -82,58 +81,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
       return
     }
 
-    if (url.pathname === "/api/analyze" && req.method === "POST") {
-      const body = await readJson<{ ticker?: string }>(req)
-      const ticker = requestTicker(body.ticker ?? "")
-      const started = Date.now()
-      try {
-        const pack = await fetchMarketPack(ticker)
-        const fetched = Date.now()
-        const plan = buildPlan(pack)
-        console.log(`[analyze] ${ticker} ${plan.grade} ${Date.now() - started}ms fetch=${fetched - started}ms grade=${Date.now() - fetched}ms bars=${pack.daily.length}`)
-        sendJson(res, 200, plan)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        console.warn(`[analyze] ${ticker} FAIL ${Date.now() - started}ms ${message}`)
-        throw err
-      }
-      return
-    }
-
-    if (url.pathname === "/api/save" && req.method === "POST") {
-      const body = await readJson<PlanOfAttack & { plan?: PlanOfAttack; scanId?: string }>(req)
-      const plan = body.plan ?? body
-      if (!plan?.ticker || !plan.grade) {
-        sendJson(res, 400, { error: "Nothing to save. Analyze a ticker first.", code: "validate" })
-        return
-      }
-      const saved = savePlan(plan, body.scanId)
-      mintFromActiveScan()
-      sendJson(res, 200, saved)
-      return
-    }
-
-    if (url.pathname === "/api/save-batch" && req.method === "POST") {
-      const body = await readJson<{ plans?: PlanOfAttack[]; scanId?: string }>(req)
-      const plans = (body.plans ?? []).filter((plan) => plan?.ticker && plan.grade && plan.grade !== "Pass")
-      if (!plans.length) {
-        sendJson(res, 400, { error: "Nothing to save. Run a queue and pick a batch size.", code: "validate" })
-        return
-      }
-      const saved = savePlans(plans, body.scanId)
-      mintFromActiveScan()
-      sendJson(res, 200, saved)
-      return
-    }
-
-    if (url.pathname === "/api/clear" && req.method === "POST") {
-      sendJson(res, 200, clearQueue())
-      return
-    }
-
     if (url.pathname === "/api/desk" && req.method === "GET") {
       const state = readDeskState()
-      sendJson(res, 200, { ...state, queuedTickers: listQueuedTickers(state.settings.bookMode) })
+      sendJson(res, 200, { ...state, queuedTickers: listQueuedTickers() })
       return
     }
 
@@ -150,7 +100,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
 
     if (url.pathname === "/api/desk/refresh" && req.method === "POST") {
       const state = await refreshDesk()
-      sendJson(res, 200, { ...state, queuedTickers: listQueuedTickers(state.settings.bookMode) })
+      sendJson(res, 200, { ...state, queuedTickers: listQueuedTickers() })
       return
     }
 
@@ -158,7 +108,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
       const body = await readJson<Partial<DeskSettings>>(req)
       const settings = writeDeskSettings(body)
       const state = readDeskState()
-      sendJson(res, 200, { settings, snapshot: state.snapshot, queuedTickers: listQueuedTickers(settings.bookMode) })
+      sendJson(res, 200, { settings, snapshot: state.snapshot, queuedTickers: listQueuedTickers() })
       return
     }
 

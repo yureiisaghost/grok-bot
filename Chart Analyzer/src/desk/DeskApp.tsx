@@ -3,12 +3,11 @@ import { ApiError, fetchDeskPlan, fetchDeskState, fetchHandoff, placePotentialOr
 import { GradeBadge } from "../components/GradeBadge"
 import { PlanPanel } from "../components/PlanPanel"
 import { PriceChart } from "../components/PriceChart"
-import type { BookMode, DeskPick, DeskPosition, DeskRegime, DeskSettings, DeskSnapshot, DeskWatch, HandoffManifest, PlanOfAttack } from "../types"
+import type { DeskPick, DeskPosition, DeskRegime, DeskSettings, DeskSnapshot, DeskWatch, HandoffManifest, PlanOfAttack } from "../types"
 import { gapShort, px } from "../lib/ticket"
 
 export interface DeskHandle {
   refresh: () => Promise<void>
-  setBookMode: (mode: BookMode) => Promise<void>
 }
 
 type OrderStatus = "sending" | "queued" | "pending"
@@ -17,7 +16,6 @@ type DeskAppProps = {
   connected: boolean
   onNeedsAuth: (authUrl?: string | null) => void
   onRefreshed?: () => void
-  onBookMode?: (mode: BookMode) => void
 }
 
 function money(n: number | null | undefined) {
@@ -71,11 +69,11 @@ function potentialRows(snapshot: DeskSnapshot) {
 }
 
 function regimeLabel(status: DeskRegime["status"]) {
-  if (status === "open") return "Tape open"
-  if (status === "pressure") return "Pressure — no new heat"
-  if (status === "blackout") return "Macro blackout — no new names"
-  if (status === "closed") return "Regime closed"
-  return "Regime unknown"
+  if (status === "open") return "Tape"
+  if (status === "pressure") return "Tape — distribution pressure"
+  if (status === "blackout") return "Tape — macro on calendar"
+  if (status === "closed") return "Tape — QQQ 10/20 not stacked"
+  return "Tape"
 }
 
 function PickCard({
@@ -83,7 +81,6 @@ function PickCard({
   kind,
   open,
   orderState,
-  bookMode,
   onOpen,
   onPlaceOrder,
 }: {
@@ -91,7 +88,6 @@ function PickCard({
   kind: "pick" | "runner"
   open?: boolean
   orderState?: "sending" | "queued" | "pending"
-  bookMode?: BookMode
   onOpen?: (pick: DeskPick) => void
   onPlaceOrder?: (pick: DeskPick) => void
 }) {
@@ -142,10 +138,8 @@ function PickCard({
         disabled={sending || pending}
         aria-label={pending ? `${pick.ticker} pending at Robinhood` : queued ? `Queued ${pick.ticker} for Grok` : `Place order for ${pick.ticker}`}
         title={pending
-          ? (bookMode === "paper" ? "Paper buy is working. Refresh fills it when last trades through the trigger." : "Working buy is live at Robinhood.")
-          : bookMode === "paper"
-            ? "Write this paper ticket to Robinhood/Paper/Potential Tickers. Not a cash order."
-            : "Write this ticket to Robinhood/Potential Tickers for Grok to place and monitor."}
+          ? "Working buy is live at Robinhood."
+          : "Write this ticket to Robinhood/Tickets. Wait for Yurei to say take."}
         onClick={(event) => {
           event.stopPropagation()
           if (pending) return
@@ -185,7 +179,7 @@ function HeatBar({ open, pending = 0, max, leftover, slot, capPct }: { open: num
   return (
     <section className="desk-heat">
       <div className="section-title">
-        <h2>Heat</h2>
+        <h2>Heat (guidelines)</h2>
         <span className="tiny">{pct(max > 0 ? (used / max) * 100 : null)} of {capPct.toFixed(0)}% cap used</span>
       </div>
       <div
@@ -396,30 +390,27 @@ function TicketDetail({ plan, onClose }: { plan: PlanOfAttack; onClose: () => vo
 }
 
 function DrivePack({ pack }: { pack: HandoffManifest | null }) {
-  const paper = (pack?.bookMode ?? "live") === "paper"
   const folders = pack?.folders?.length ? pack.folders : [
-    { drive: "handoff/ACTIVE-SESSION.md", kind: "Phone Grok reads this first — LIVE vs PAPER" },
-    { drive: "handoff/ACTIVE-SESSION.json", kind: "Machine session flag (placeCashOrders)" },
-    { drive: "handoff/DESK-BRIEF.md", kind: "Decision brief after the session flag" },
+    { drive: "handoff/ACTIVE-SESSION.md", kind: "Phone Grok reads this first — live cash book" },
+    { drive: "handoff/ACTIVE-SESSION.json", kind: "Machine session (placeCashOrders)" },
+    { drive: "handoff/DESK-BRIEF.md", kind: "Local leftover — not the book" },
     { drive: "handoff/GROK-HANDOFF.json", kind: "Exact file list for Bot to upload" },
-    { drive: "desk-data/scans/", kind: "Screener keepers + .active-scan.json pointer" },
-    { drive: "desk-data/last-refresh.json", kind: "Live desk snapshot" },
-    { drive: "desk-data/last-refresh-paper.json", kind: "Paper desk snapshot (kept when you switch to cash)" },
-    { drive: "desk-data/paper-account.json", kind: "Paper ledger" },
-    { drive: "desk-data/account.json", kind: "Short equity/heat summary for the current book" },
-    { drive: "desk-data/settings.json", kind: "Risk rules + Live/Paper mode" },
-    { drive: "Robinhood/Potential Tickers/", kind: "Live tickets — cash OK" },
-    { drive: "Robinhood/Filled Tickers/", kind: "Live fills" },
-    { drive: "Robinhood/Paper/Potential Tickers/", kind: "Paper tickets — do not place in cash" },
-    { drive: "Robinhood/Paper/Filled Tickers/", kind: "Paper fills" },
+    { drive: "desk-data/scans/", kind: "Full keeper list + .active-scan.json" },
+    { drive: "desk-data/regime.json", kind: "Tape card (QQQ/SPY/IWM) — not a trading lock" },
+    { drive: "desk-data/watches.json", kind: "Carry watches Phone maintains" },
+    { drive: "desk-data/last-refresh.json", kind: "Local desk snapshot — not Phone's book" },
+    { drive: "desk-data/account.json", kind: "Short equity/heat summary" },
+    { drive: "desk-data/settings.json", kind: "Heat guidelines" },
+    { drive: "Robinhood/Tickets/", kind: "Cash tickets after Yurei says take — not the scan pack" },
+    { drive: "Robinhood/Filled/", kind: "Filled tickets" },
+    { drive: "Robinhood/Stale/", kind: "Dead / skipped tickets" },
   ]
   return (
     <details className="desk-drive" open>
       <summary>Google Drive pack</summary>
       <p className="tiny" style={{ marginTop: 8 }}>
         Upload into Drive folder <strong>Grok Trading/</strong> using the same relative paths.
-        Phone Grok opens <code>handoff/ACTIVE-SESSION.md</code> first — that file says LIVE or PAPER.
-        {paper ? " Paper mode — do not place those tickets in cash." : " Live mode — Potential Tickers may be placed in cash."}
+        Phone Grok reads Bot’s full keeper list plus the live Robinhood cash book. Tape is color, not a lock.
       </p>
       <p className="tiny"><strong>Where each kind of file goes</strong></p>
       <ul className="drive-list">
@@ -441,20 +432,20 @@ function DrivePack({ pack }: { pack: HandoffManifest | null }) {
           ))}
         </ul>
       ) : (
-        <p className="tiny">Save a scan or click Refresh to write the pack. Bot reads <code>handoff/GROK-HANDOFF.json</code> for this list.</p>
+        <p className="tiny">Run <code>npm run scan</code> or click Refresh to write the pack. Bot reads <code>handoff/GROK-HANDOFF.json</code> for this list.</p>
       )}
       <p className="tiny">Never upload OAuth tokens, <code>node_modules</code>, <code>.env</code>, or Drive <code>(1)</code> copies.</p>
     </details>
   )
 }
 
-export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ connected, onNeedsAuth, onRefreshed, onBookMode }, ref) {
+export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ connected, onNeedsAuth, onRefreshed }, ref) {
   const [settings, setSettings] = useState<DeskSettings>({
     riskPct: 1,
     maxHeatPct: 6,
     maxNewNames: 2,
     bookMode: "live",
-    paperStartingCash: 5000,
+    paperStartingCash: 1000,
   })
   const [snapshot, setSnapshot] = useState<DeskSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -493,7 +484,7 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
       const pending = (next.snapshot?.working ?? []).filter((row) => row.orderStatus === "pending").map((row) => row.ticker)
       const bits: string[] = []
       if (next.snapshot?.usedNewList) {
-        bits.push(scan?.fileName ? `Loaded new list ${scan.fileName}.` : "Loaded a new screener list.")
+        bits.push(scan?.fileName ? `Loaded new list ${scan.fileName}.` : "Loaded a new keeper list.")
       } else if (!scan?.fileName) {
         bits.push("No new list. Book was still refreshed.")
       } else {
@@ -501,13 +492,10 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
       }
       if (filled.length) bits.push(`${filled.join(", ")} filled — now in Open positions.`)
       if (pending.length) {
-        bits.push(next.settings.bookMode === "paper"
-          ? `${pending.join(", ")} pending on the paper book.`
-          : `${pending.join(", ")} pending at Robinhood.`)
+        bits.push(`${pending.join(", ")} pending at Robinhood.`)
       }
       bits.push("Handoff pack ready in handoff/.")
       setNotice(bits.join(" "))
-      onBookMode?.(next.settings.bookMode)
       loadHandoff()
       onRefreshed?.()
     } catch (err) {
@@ -520,28 +508,9 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
     } finally {
       setLoading(false)
     }
-  }, [onNeedsAuth, onRefreshed, onBookMode])
+  }, [onNeedsAuth, onRefreshed])
 
-  const onSetBookMode = useCallback(async (mode: BookMode) => {
-    setError(null)
-    try {
-      const next = await saveDeskSettings({ bookMode: mode })
-      setSettings(next.settings)
-      setSnapshot(next.snapshot)
-      setOrderState(orderStateFrom(next.snapshot, next.queuedTickers))
-      setOpenTicker(null)
-      setOpenPlan(null)
-      onBookMode?.(next.settings.bookMode)
-      setNotice(mode === "paper"
-        ? "Paper book. Same heat rules. Refresh fills paper tickets from live last. Do not send those tickets to cash."
-        : "Live book. Place Order writes Robinhood/Potential Tickers for Grok to place in cash.")
-      loadHandoff()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }, [onBookMode])
-
-  useImperativeHandle(ref, () => ({ refresh: onRefresh, setBookMode: onSetBookMode }), [onRefresh, onSetBookMode])
+  useImperativeHandle(ref, () => ({ refresh: onRefresh }), [onRefresh])
 
   useEffect(() => {
     let cancelled = false
@@ -550,7 +519,6 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
       setSettings(state.settings)
       setSnapshot(state.snapshot)
       setOrderState(orderStateFrom(state.snapshot, state.queuedTickers))
-      onBookMode?.(state.settings.bookMode)
       setHydrated(true)
       loadHandoff()
     }).catch((err: unknown) => {
@@ -559,7 +527,7 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
       setHydrated(true)
     })
     return () => { cancelled = true }
-  }, [onBookMode])
+  }, [])
 
   async function onSaveSettings(event: FormEvent) {
     event.preventDefault()
@@ -568,7 +536,6 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
       setSettings(next.settings)
       setSnapshot(next.snapshot)
       setOrderState(orderStateFrom(next.snapshot, next.queuedTickers))
-      onBookMode?.(next.settings.bookMode)
       setNotice("Risk rules saved. Click Refresh to re-allocate.")
       loadHandoff()
     } catch (err) {
@@ -624,11 +591,9 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
         setSnapshot(next.snapshot)
         setOrderState(orderStateFrom(next.snapshot, next.queuedTickers))
       } catch {
-        setOrderState((prev) => ({ ...prev, [pick.ticker]: result.bookMode === "paper" ? "pending" : "queued" }))
+        setOrderState((prev) => ({ ...prev, [pick.ticker]: "queued" }))
       }
-      setNotice(result.bookMode === "paper"
-        ? `Paper ticket ${result.ticker} → ${result.driveFolder}. Not a cash order.`
-        : `Queued ${result.ticker} for Grok in ${result.driveFolder}.`)
+      setNotice(`Queued ${result.ticker} for Grok in ${result.driveFolder}.`)
       loadHandoff()
     } catch (err) {
       setOrderState((prev) => {
@@ -671,16 +636,14 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
       {!connected && (
         <div className="empty">
           <strong>Connect Robinhood for quotes and tape</strong>
-          {settings.bookMode === "paper"
-            ? "Paper equity stays on this machine. Refresh still needs market data. Tokens stay on this PC, not Google Drive."
-            : "Tokens stay on this PC. Refresh then sizes leftover heat against the screener list."}
+          Tokens stay on this PC. Refresh sizes leftover heat against the keeper list.
         </div>
       )}
 
       {connected && hydrated && !snapshot && !loading && (
         <div className="empty">
           <strong>Click Refresh</strong>
-          It will pull the index tape, your account, and any screener list — then return a ticket, or the rule that said no.
+          It will pull the index tape, your account, and any keeper list — then return a ticket, or the rule that said no.
         </div>
       )}
 
@@ -689,7 +652,7 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
       {book && (
         <section className="desk-book">
           <div className="section-title">
-            <h2>{settings.bookMode === "paper" ? "Paper book" : "Book"}</h2>
+            <h2>Book</h2>
             <span className="tiny">
               {snapshot?.refreshedAt}
               {snapshot?.scan?.fileName ? ` · ${snapshot.scan.fileName}` : ""}
@@ -744,7 +707,9 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
 
       {((snapshot?.pick || snapshot?.runnerUp) || (snapshot?.working?.length ?? 0) > 0) && (
         <section className="desk-cards">
-          <div className="section-title"><h2>Potential</h2></div>
+          <div className="section-title">
+            <h2>Potential</h2>
+          </div>
           <div className="ticket-row">
           {snapshot && potentialRows(snapshot).map((row) => (
             <PickCard
@@ -753,7 +718,6 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
               kind={row.kind}
               open={openTicker === row.pick.ticker}
               orderState={orderState[row.pick.ticker]}
-              bookMode={settings.bookMode}
               onOpen={(item) => void onOpenCard(item)}
               onPlaceOrder={(item) => void onPlaceOrder(item)}
             />
@@ -772,7 +736,7 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
         </section>
       )}
 
-      {snapshot && !snapshot.pick && snapshot.nothingReason && !(snapshot.working?.length) && (
+      {snapshot && !snapshot.pick && snapshot.nothingReason && !(snapshot.working?.length) && snapshot.nextUp.length === 0 && (
         <div className="empty">
           <strong>{snapshot.nothingStep != null ? `Nothing to take · step ${snapshot.nothingStep}` : "Nothing to take"}</strong>
           {snapshot.nothingReason}
@@ -854,19 +818,6 @@ export const DeskApp = forwardRef<DeskHandle, DeskAppProps>(function DeskApp({ c
               onChange={(e) => setSettings((s) => ({ ...s, maxNewNames: Number(e.target.value) }))}
             />
           </label>
-          {settings.bookMode === "paper" && (
-            <label>
-              Paper cash
-              <input
-                type="number"
-                step="500"
-                min="1000"
-                max="1000000"
-                value={settings.paperStartingCash}
-                onChange={(e) => setSettings((s) => ({ ...s, paperStartingCash: Number(e.target.value) }))}
-              />
-            </label>
-          )}
           <button className="btn" type="submit">Save rules</button>
         </form>
       </details>

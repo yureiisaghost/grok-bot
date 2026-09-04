@@ -225,6 +225,8 @@ export interface DeskPick {
   clusterUsed?: number | null
   orderStatus?: "queued" | "pending"
   brokerState?: string | null
+  /** False when the card is review-only (tape parked or leftover heat cannot take it). */
+  actionable?: boolean
 }
 
 export type RegimeStatus = "open" | "closed" | "pressure" | "unknown" | "blackout"

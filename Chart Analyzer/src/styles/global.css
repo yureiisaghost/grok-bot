@@ -862,6 +862,11 @@ button, input {
 .stock-card.is-watch {
   border-color: rgba(201, 160, 255, 0.4);
 }
+.stock-card.is-parked .stock-card-order,
+.stock-card.is-parked .stock-card-order:hover {
+  opacity: 0.7;
+  cursor: default;
+}
 .stock-card.is-open {
   border-color: var(--cyan);
   box-shadow: 0 0 0 1px rgba(94, 200, 230, 0.35);

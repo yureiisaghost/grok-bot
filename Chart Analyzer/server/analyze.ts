@@ -779,7 +779,7 @@ function sizeNote(equity: number | null, entry: number | null, stop: number | nu
     equity,
     shares: null,
     dollarRisk: risk,
-      note: `1-share dollar risk $${risk.toFixed(2)}. Desk Refresh sizes from leftover heat. Screener does not pick share count.`,
+      note: `1-share dollar risk $${risk.toFixed(2)}. Phone Grok sizes against leftover cash. Bot does not pick share count.`,
   }
 }
 
@@ -942,7 +942,7 @@ export function buildPlan(pack: MarketPack): PlanOfAttack {
   const book = readActiveAccount()
   const sized = sizeFromAccount(book, chosen.entryPrice, chosen.stopPrice)
   if (sized && !sized.sizeableNow && chosen.grade !== "Pass") {
-    warnings.push(`Cannot take 1 share on the ${book.bookMode === "paper" ? "paper" : "live"} book at 1%/6% (equity ${book.equity != null ? `$${book.equity.toFixed(2)}` : "n/a"}). Save will drop it from the Candidate dock.`)
+    warnings.push(`Cannot take 1 share on the live book at 1%/6% (equity ${book.equity != null ? `$${book.equity.toFixed(2)}` : "n/a"}). Phone still sees the name; leftover cash is Phone's filter, not a dock drop.`)
   }
   const targets = rTargets(chosen.entryPrice, chosen.stopPrice)
   const namedLevel = chosen.entryPrice ?? chosen.sketch.pivot

@@ -3,11 +3,9 @@ import type { BookMode } from "../src/types"
 import {
   ACCOUNT_FILE,
   LAST_REFRESH_FILE,
-  SETTINGS_FILE,
   ensureDeskDirs,
 } from "./deskPaths"
 import { nowPtStamp } from "./http"
-import { readPaperAccount } from "./paperAccount"
 
 export interface AccountSnapshot {
   bookMode: BookMode
@@ -20,32 +18,8 @@ export interface AccountSnapshot {
   updatedAt?: string
 }
 
-type LooseSettings = {
-  bookMode: BookMode
-  riskPct: number
-  maxHeatPct: number
-  paperStartingCash: number
-}
-
 function finite(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n)
-}
-
-function readSettingsLoose(): LooseSettings {
-  try {
-    if (!fs.existsSync(SETTINGS_FILE)) {
-      return { bookMode: "live", riskPct: 1, maxHeatPct: 6, paperStartingCash: 5000 }
-    }
-    const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8")) as Record<string, unknown>
-    return {
-      bookMode: raw.bookMode === "paper" ? "paper" : "live",
-      riskPct: finite(raw.riskPct) ? raw.riskPct : 1,
-      maxHeatPct: finite(raw.maxHeatPct) ? raw.maxHeatPct : 6,
-      paperStartingCash: finite(raw.paperStartingCash) ? raw.paperStartingCash : 5000,
-    }
-  } catch {
-    return { bookMode: "live", riskPct: 1, maxHeatPct: 6, paperStartingCash: 5000 }
-  }
 }
 
 function fromDeskSnapshot(file: string, mode: BookMode): AccountSnapshot | null {
@@ -78,35 +52,8 @@ function fromDeskSnapshot(file: string, mode: BookMode): AccountSnapshot | null 
   }
 }
 
-function fromPaperLedger(settings: LooseSettings): AccountSnapshot {
-  const ledger = readPaperAccount(settings.paperStartingCash)
-  const equity = Math.max(0, ledger.equity)
-  const cash = Math.max(0, ledger.cash)
-  const maxHeat = equity * (settings.maxHeatPct / 100)
-  const perName = equity * (settings.riskPct / 100)
-  const openHeat = ledger.positions.reduce((sum, pos) => {
-    const last = pos.lastPrice ?? pos.avgCost
-    const stop = pos.stopPrice
-    if (!(pos.quantity > 0) || last == null || stop == null) return sum
-    return sum + pos.quantity * Math.max(0, last - stop)
-  }, 0)
-  const pendingHeat = ledger.pendingBuys.reduce((sum, row) => sum + (finite(row.dollarRisk) ? row.dollarRisk : 0), 0)
-  return {
-    bookMode: "paper",
-    equity,
-    cash,
-    remainingRoom: Math.max(0, maxHeat - openHeat - pendingHeat),
-    riskPct: perName,
-    maxHeat,
-    placeCashOrders: false,
-    updatedAt: ledger.updatedAt,
-  }
-}
-
-/** Active Live or Paper book the screener and Phone Grok should size against. */
+/** Live Robinhood cash book. Paper is gone. */
 export function readActiveAccount(): AccountSnapshot {
-  const settings = readSettingsLoose()
-  if (settings.bookMode === "paper") return fromPaperLedger(settings)
   return fromDeskSnapshot(LAST_REFRESH_FILE, "live") ?? {
     bookMode: "live",
     equity: null,
@@ -192,6 +139,6 @@ export function sizeFromRoom(
   )
 }
 
-export function sessionLabel(mode: BookMode | undefined) {
-  return mode === "paper" ? "PAPER" : "LIVE"
+export function sessionLabel(_mode?: BookMode) {
+  return "LIVE" as const
 }

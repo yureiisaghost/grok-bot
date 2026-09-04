@@ -1,8 +1,8 @@
 import fs from "node:fs"
-import type { BookMode, DeskPick, DeskSettings, DeskSnapshot, DeskState, OhlcvBar, PlanOfAttack } from "../src/types"
+import type { DeskPick, DeskSettings, DeskSnapshot, DeskState, OhlcvBar, PlanOfAttack } from "../src/types"
 import { nowPtStamp, todayPtIso } from "./http"
 import { loadDeskUniverse } from "./markdown"
-import { PAPER_ACCOUNT_FILE, SETTINGS_FILE, ensureDeskDirs, snapshotFile } from "./deskPaths"
+import { SETTINGS_FILE, ensureDeskDirs, snapshotFile } from "./deskPaths"
 import { writeAccountFromActive, writeAccountSummary } from "./accountSnapshot"
 import { writeHandoff } from "./handoff"
 import { clampSettings, DEFAULT_SETTINGS, pickForBook, type AccountBook } from "./picker"
@@ -12,7 +12,6 @@ import { applyQuotesToPositions, overlayPlanQuote, quotePriority } from "./liveO
 import { applyMacroBlackout, loadMacroEvents } from "./macro"
 import { annotateHeldPositions } from "./heldState"
 import { buildHeldChartPlan } from "./heldChart"
-import { applyPaperTape, emptyPaperAccount, paperToBook, readPaperAccount, writePaperAccount } from "./paperAccount"
 import { syncPotentialPackets } from "./potentialQueue"
 
 export function readDeskSettings(): DeskSettings {
@@ -28,23 +27,16 @@ export function writeDeskSettings(raw: Partial<DeskSettings>): DeskSettings {
   ensureDeskDirs()
   const settings = clampSettings({ ...readDeskSettings(), ...raw })
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf8")
-  if (settings.bookMode === "paper") {
-    const ledger = readPaperAccount(settings.paperStartingCash)
-    const unused = ledger.positions.length === 0 && ledger.pendingBuys.length === 0 && ledger.closed.length === 0
-    if (!fs.existsSync(PAPER_ACCOUNT_FILE) || unused) {
-      writePaperAccount(emptyPaperAccount(settings.paperStartingCash))
-    }
-  }
-  const snapshot = readLastSnapshot(settings.bookMode)
+  const snapshot = readLastSnapshot()
   if (snapshot) writeLiveAccount(snapshot)
   else writeAccountFromActive()
   writeHandoff("settings")
   return settings
 }
 
-function readLastSnapshot(mode = readDeskSettings().bookMode): DeskSnapshot | null {
+function readLastSnapshot(): DeskSnapshot | null {
   try {
-    const file = snapshotFile(mode)
+    const file = snapshotFile()
     if (!fs.existsSync(file)) return null
     return JSON.parse(fs.readFileSync(file, "utf8")) as DeskSnapshot
   } catch {
@@ -54,14 +46,13 @@ function readLastSnapshot(mode = readDeskSettings().bookMode): DeskSnapshot | nu
 
 function writeLastSnapshot(snapshot: DeskSnapshot) {
   ensureDeskDirs()
-  const mode = snapshot.bookMode === "paper" ? "paper" : "live"
-  fs.writeFileSync(snapshotFile(mode), JSON.stringify(snapshot, null, 2), "utf8")
+  fs.writeFileSync(snapshotFile(), JSON.stringify(snapshot, null, 2), "utf8")
 }
 
 function writeLiveAccount(snapshot: DeskSnapshot) {
   writeAccountSummary({
-    bookMode: snapshot.bookMode === "paper" ? "paper" : "live",
-    placeCashOrders: snapshot.bookMode !== "paper",
+    bookMode: "live",
+    placeCashOrders: true,
     equity: snapshot.book.equity,
     cash: snapshot.book.cash,
     remainingRoom: snapshot.book.remainingHeat,
@@ -111,19 +102,17 @@ function extraClosesFrom(
   return heldCloses
 }
 
-async function loadBook(mode: BookMode): Promise<AccountBook> {
-  if (mode === "paper") return paperToBook(readPaperAccount(readDeskSettings().paperStartingCash))
+async function loadBook(): Promise<AccountBook> {
   return fetchAccountBook()
 }
 
 export async function refreshDesk(): Promise<DeskState> {
   const settings = readDeskSettings()
-  const mode = settings.bookMode
-  const previous = readLastSnapshot(mode)
+  const previous = readLastSnapshot()
   const universe = loadDeskUniverse()
   const today = todayPtIso()
   const [book, tape] = await Promise.all([
-    loadBook(mode),
+    loadBook(),
     fetchDeskTape().catch((err) => {
       console.warn(`[desk] tape pull failed (${err instanceof Error ? err.message : String(err)}). Regime unknown.`)
       return { qqqDaily: [], spyWeekly: [] }
@@ -156,16 +145,9 @@ export async function refreshDesk(): Promise<DeskState> {
     const quote = quotes.get(plan.ticker.toUpperCase())
     return quote ? overlayPlanQuote(plan, quote) : plan
   })
-  let workingBook = book
-  let paperFilled: string[] = []
-  if (mode === "paper") {
-    const applied = applyPaperTape(readPaperAccount(settings.paperStartingCash), quotes, nowPtStamp())
-    writePaperAccount(applied.ledger)
-    workingBook = paperToBook(applied.ledger)
-    paperFilled = applied.filledTickers
-  }
+  const workingBook = book
   const marked = applyQuotesToPositions(workingBook.positions, quotes)
-  const queued = syncPotentialPackets(marked, workingBook.openBuys === undefined ? [] : workingBook.openBuys, mode)
+  const queued = syncPotentialPackets(marked, workingBook.openBuys === undefined ? [] : workingBook.openBuys, "live")
   const working = queued.working.map((row) => {
     const quote = quotes.get(row.ticker.toUpperCase())
     return quote ? { ...row, lastPrice: quote.last } : row
@@ -186,10 +168,10 @@ export async function refreshDesk(): Promise<DeskState> {
     regime,
     heldCloses: extraClosesFrom(extraDaily),
     working,
-    bookMode: mode,
+    bookMode: "live",
   })
   snapshot.working = working
-  snapshot.filledFromQueue = [...new Set([...queued.filledTickers, ...paperFilled])]
+  snapshot.filledFromQueue = queued.filledTickers
   snapshot.positions = annotateHeldPositions(snapshot.positions, {
     plans,
     extraBars,

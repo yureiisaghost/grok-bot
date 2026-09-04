@@ -15,13 +15,15 @@ export const LAST_REFRESH_PAPER_FILE = path.join(DESK_DIR, "last-refresh-paper.j
 export const SETTINGS_FILE = path.join(DESK_DIR, "settings.json")
 export const ACCOUNT_FILE = path.join(DESK_DIR, "account.json")
 export const PAPER_ACCOUNT_FILE = path.join(DESK_DIR, "paper-account.json")
+export const REGIME_FILE = path.join(DESK_DIR, "regime.json")
+export const WATCHES_FILE = path.join(DESK_DIR, "watches.json")
 export const MACRO_OVERRIDE_FILE = path.join(DESK_DIR, "macro-calendar.json")
+export const SCAN_PROGRESS_FILE = path.join(SCANS_DIR, ".scan-progress.json")
 export const ROBINHOOD_DIR = path.join(ROOT, "Robinhood")
-export const POTENTIAL_TICKERS_DIR = path.join(ROBINHOOD_DIR, "Potential Tickers")
-export const FILLED_TICKERS_DIR = path.join(ROBINHOOD_DIR, "Filled Tickers")
-export const PAPER_ROBINHOOD_DIR = path.join(ROBINHOOD_DIR, "Paper")
-export const PAPER_POTENTIAL_DIR = path.join(PAPER_ROBINHOOD_DIR, "Potential Tickers")
-export const PAPER_FILLED_DIR = path.join(PAPER_ROBINHOOD_DIR, "Filled Tickers")
+/** Queued / pending cash tickets after Yurei says take. Not the Bot scan pack. */
+export const TICKETS_DIR = path.join(ROBINHOOD_DIR, "Tickets")
+export const FILLED_DIR = path.join(ROBINHOOD_DIR, "Filled")
+export const STALE_DIR = path.join(ROBINHOOD_DIR, "Stale")
 export const HANDOFF_DIR = path.join(ROOT, "handoff")
 export const HANDOFF_MANIFEST_FILE = path.join(HANDOFF_DIR, "GROK-HANDOFF.json")
 export const HANDOFF_BRIEF_FILE = path.join(HANDOFF_DIR, "DESK-BRIEF.md")
@@ -35,24 +37,16 @@ export type QueueDirs = {
   driveFilled: string
 }
 
-export function snapshotFile(mode: "live" | "paper") {
-  return mode === "paper" ? LAST_REFRESH_PAPER_FILE : LAST_REFRESH_FILE
+export function snapshotFile(_mode?: "live" | "paper") {
+  return LAST_REFRESH_FILE
 }
 
-export function queueDirs(mode: "live" | "paper"): QueueDirs {
-  if (mode === "paper") {
-    return {
-      potential: PAPER_POTENTIAL_DIR,
-      filled: PAPER_FILLED_DIR,
-      drivePotential: "Robinhood/Paper/Potential Tickers",
-      driveFilled: "Robinhood/Paper/Filled Tickers",
-    }
-  }
+export function queueDirs(_mode?: "live" | "paper"): QueueDirs {
   return {
-    potential: POTENTIAL_TICKERS_DIR,
-    filled: FILLED_TICKERS_DIR,
-    drivePotential: "Robinhood/Potential Tickers",
-    driveFilled: "Robinhood/Filled Tickers",
+    potential: TICKETS_DIR,
+    filled: FILLED_DIR,
+    drivePotential: "Robinhood/Tickets",
+    driveFilled: "Robinhood/Filled",
   }
 }
 
@@ -68,10 +62,9 @@ export function ensureDeskDirs() {
 }
 
 export function ensureRobinhoodDirs() {
-  fs.mkdirSync(POTENTIAL_TICKERS_DIR, { recursive: true })
-  fs.mkdirSync(FILLED_TICKERS_DIR, { recursive: true })
-  fs.mkdirSync(PAPER_POTENTIAL_DIR, { recursive: true })
-  fs.mkdirSync(PAPER_FILLED_DIR, { recursive: true })
+  fs.mkdirSync(TICKETS_DIR, { recursive: true })
+  fs.mkdirSync(FILLED_DIR, { recursive: true })
+  fs.mkdirSync(STALE_DIR, { recursive: true })
 }
 
 export function ensureHandoffDir() {

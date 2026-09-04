@@ -41,9 +41,9 @@ function money(n: number | null | undefined) {
   return `$${n.toFixed(2)}`
 }
 
-function headline(status: HandoffStatus, bookMode?: BookMode) {
+function headline(status: HandoffStatus) {
   if (status === "filled") return "filled"
-  if (status === "pending") return bookMode === "paper" ? "pending on paper book" : "pending at Robinhood"
+  if (status === "pending") return "pending at Robinhood"
   return "queued for Grok"
 }
 
@@ -57,7 +57,7 @@ export function ticketMarkdown(packet: {
   filledAt?: string
   bookMode?: BookMode
 }) {
-  const { status, queuedAt, role, pick, plan, broker, filledAt, bookMode } = packet
+  const { status, queuedAt, role, pick, plan, broker, filledAt } = packet
   const warnings = plan?.warnings?.length ? plan.warnings.map((w) => `- ${w}`).join("\n") : "- none"
   const roleLabel = role === "runner" ? "Runner-up" : "Desk pick"
   const brokerLines = broker
@@ -70,13 +70,10 @@ export function ticketMarkdown(packet: {
 - Limit: ${money(broker.limitPrice)}
 `
     : ""
-  const mode = bookMode === "paper" ? "paper" : "live"
-  const footer = mode === "paper"
-    ? "PAPER TICKET — Do not place this in Robinhood cash. Trade Desk fills it on Refresh when last trades through the trigger. Do not change shares, stop, or entry method unless the ticket is invalid."
-    : "Trade Desk queued this file for Grok to place and monitor in Robinhood. Do not change shares, stop, or entry method unless the ticket is invalid."
-  return `# ${pick.ticker} — ${headline(status, bookMode)}
+  const footer = "Queued for Phone Grok to place and monitor in Robinhood after Yurei says take. Do not change shares, stop, or entry method unless the ticket is invalid."
+  return `# ${pick.ticker} — ${headline(status)}
 
-**Book:** ${mode}
+**Book:** live cash
 **Queued:** ${queuedAt}
 **Status:** ${status}${filledAt ? `
 **Filled:** ${filledAt}` : ""}
@@ -192,7 +189,7 @@ function toWorkingPick(packet: PotentialPacket, status: "queued" | "pending", bu
   }
 }
 
-/** Match Potential Tickers to the current book. Pending stays; fills move to Filled Tickers. */
+/** Match Robinhood/Tickets to the current book. Pending stays; fills move to Robinhood/Filled. */
 export function syncPotentialPackets(
   positions: BookPosition[],
   openBuys: OpenBuyOrder[] | null,

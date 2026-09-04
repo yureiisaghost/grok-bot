@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import type { BookMode, DeskSettings, DeskSnapshot, DriveFolderGuide, HandoffManifest, HandoffUpload } from "../src/types"
+import type { BookMode, DeskSnapshot, DriveFolderGuide, HandoffManifest, HandoffUpload } from "../src/types"
 import {
   ACCOUNT_FILE,
   ACTIVE_FILE,
@@ -10,38 +10,36 @@ import {
   HANDOFF_BRIEF_FILE,
   HANDOFF_MANIFEST_FILE,
   LAST_REFRESH_FILE,
-  LAST_REFRESH_PAPER_FILE,
   OUTCOMES_DIR,
-  PAPER_ACCOUNT_FILE,
+  REGIME_FILE,
   SCANS_DIR,
   SETTINGS_FILE,
+  WATCHES_FILE,
   ensureHandoffDir,
   posixRel,
   queueDirs,
   snapshotFile,
 } from "./deskPaths"
-import { readActiveAccount, sessionLabel } from "./accountSnapshot"
+import { readActiveAccount } from "./accountSnapshot"
 import { nowPtStamp } from "./http"
-import { DEFAULT_SETTINGS } from "./picker"
 
 export type HandoffReason = HandoffManifest["reason"]
 
 export const DRIVE_FOLDERS: DriveFolderGuide[] = [
-  { drive: "handoff/ACTIVE-SESSION.md", kind: "Phone Grok reads this first — LIVE vs PAPER" },
-  { drive: "handoff/ACTIVE-SESSION.json", kind: "Machine session flag (placeCashOrders)" },
-  { drive: "handoff/DESK-BRIEF.md", kind: "Decision brief after the session flag" },
+  { drive: "handoff/ACTIVE-SESSION.md", kind: "Phone Grok reads this first — live cash book" },
+  { drive: "handoff/ACTIVE-SESSION.json", kind: "Machine session (placeCashOrders)" },
+  { drive: "handoff/DESK-BRIEF.md", kind: "Local leftover — not the book" },
   { drive: "handoff/GROK-HANDOFF.json", kind: "Exact file list for Bot to upload" },
-  { drive: "desk-data/scans/", kind: "Screener keepers + .active-scan.json pointer" },
+  { drive: "desk-data/scans/", kind: "Full keeper list + .active-scan.json" },
   { drive: "desk-data/scans/outcomes/", kind: "Frozen outcome cards (setup + tape fate)" },
-  { drive: "desk-data/last-refresh.json", kind: "Live desk snapshot" },
-  { drive: "desk-data/last-refresh-paper.json", kind: "Paper desk snapshot (kept when you switch to cash)" },
-  { drive: "desk-data/paper-account.json", kind: "Paper ledger" },
-  { drive: "desk-data/account.json", kind: "Short equity/heat summary for the current book" },
-  { drive: "desk-data/settings.json", kind: "Risk rules + Live/Paper mode" },
-  { drive: "Robinhood/Potential Tickers/", kind: "Live tickets — cash OK" },
-  { drive: "Robinhood/Filled Tickers/", kind: "Live fills" },
-  { drive: "Robinhood/Paper/Potential Tickers/", kind: "Paper tickets — do not place in cash" },
-  { drive: "Robinhood/Paper/Filled Tickers/", kind: "Paper fills" },
+  { drive: "desk-data/regime.json", kind: "Tape card (QQQ/SPY/IWM) — not a trading lock" },
+  { drive: "desk-data/watches.json", kind: "Carry watches Phone maintains" },
+  { drive: "desk-data/last-refresh.json", kind: "Local desk snapshot — not Phone's book" },
+  { drive: "desk-data/account.json", kind: "Short equity/heat summary" },
+  { drive: "desk-data/settings.json", kind: "Heat guidelines" },
+  { drive: "Robinhood/Tickets/", kind: "Cash tickets after Yurei says take — not the scan pack" },
+  { drive: "Robinhood/Filled/", kind: "Filled tickets" },
+  { drive: "Robinhood/Stale/", kind: "Dead / skipped tickets" },
 ]
 
 const DRIVE_COPY = /\s\(\d+\)\.\w+$/
@@ -91,19 +89,9 @@ function addDirJsonMd(
   }
 }
 
-function readSettings(): DeskSettings {
+function readSnapshot(): DeskSnapshot | null {
   try {
-    if (!fs.existsSync(SETTINGS_FILE)) return { ...DEFAULT_SETTINGS }
-    const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8")) as Partial<DeskSettings>
-    return { ...DEFAULT_SETTINGS, ...raw, bookMode: raw.bookMode === "paper" ? "paper" : "live" }
-  } catch {
-    return { ...DEFAULT_SETTINGS }
-  }
-}
-
-function readSnapshot(mode: BookMode): DeskSnapshot | null {
-  try {
-    const file = snapshotFile(mode)
+    const file = snapshotFile()
     if (!fs.existsSync(file)) return null
     return JSON.parse(fs.readFileSync(file, "utf8")) as DeskSnapshot
   } catch {
@@ -123,6 +111,8 @@ function activeScanFiles(): string[] {
     if (stem) {
       files.push(path.join(ARCHIVE_DIR, `${stem}_raw.json`))
       files.push(path.join(ARCHIVE_DIR, `${stem}_raw.md`))
+      files.push(path.join(SCANS_DIR, `${stem}_keepers.json`))
+      files.push(path.join(SCANS_DIR, `${stem}_candidates.json`))
     }
     return files
   } catch {
@@ -135,50 +125,44 @@ function money(n: number | null | undefined) {
   return `$${n.toFixed(2)}`
 }
 
-function sessionBanner(mode: BookMode, equity: number | null | undefined, cash: number | null | undefined, perName: number | null | undefined) {
-  const paper = mode === "paper"
-  return `# ACTIVE SESSION: ${sessionLabel(mode)}
+function sessionBanner(equity: number | null | undefined, cash: number | null | undefined, perName: number | null | undefined) {
+  return `# ACTIVE SESSION: LIVE
 
-**Place cash / Robinhood orders: ${paper ? "NO" : "YES"}**
-**Book:** ${paper ? "Paper training account" : "Live Robinhood cash"}
+**Book:** Grok Trading Robinhood cash
 **Equity:** ${money(equity)}
 **Cash:** ${money(cash)}
-**1R slot (1%):** ${money(perName)}
-**Tickets folder:** ${paper ? "`Robinhood/Paper/Potential Tickers/`" : "`Robinhood/Potential Tickers/`"}
+**1R slot (1% guideline):** ${money(perName)}
+**Tickets folder:** \`Robinhood/Tickets/\`
 
-If this file says PAPER, do not place or manage cash orders. If it says LIVE, queued tickets in Potential Tickers may be placed in Robinhood.
+Phone Grok filters the keeper list against leftover cash, open positions, and carry watches. Yurei says take or skip before any cash order. Tape (QQQ/SPY/IWM) is color, not a lock.
 `
 }
 
 function writeActiveSessionFiles() {
   const active = readActiveAccount()
-  const mode = active.bookMode
   const payload = {
     schema: "grok-trading-session/v1",
-    active: mode,
-    label: sessionLabel(mode),
-    placeCashOrders: active.placeCashOrders,
+    active: "live",
+    label: "LIVE",
+    placeCashOrders: true,
     equity: active.equity,
     cash: active.cash,
     perNameRisk: active.riskPct,
     remainingHeat: active.remainingRoom,
     maxHeat: active.maxHeat,
-    ticketsFolder: mode === "paper" ? "Robinhood/Paper/Potential Tickers" : "Robinhood/Potential Tickers",
+    ticketsFolder: "Robinhood/Tickets",
     updatedAt: active.updatedAt ?? nowPtStamp(),
-    instruction: mode === "paper"
-      ? "PAPER session is active. Do not place orders in Robinhood cash. Use Robinhood/Paper/ only."
-      : "LIVE session is active. Queued tickets in Robinhood/Potential Tickers may be placed in the cash account.",
+    instruction: "Live Grok Trading cash book. Phone Grok filters keepers against leftover capital. Wait for Yurei before placing.",
   }
   fs.writeFileSync(ACTIVE_SESSION_JSON, JSON.stringify(payload, null, 2), "utf8")
   fs.writeFileSync(
     ACTIVE_SESSION_MD,
-    `${sessionBanner(mode, active.equity, active.cash, active.riskPct)}Generated: ${nowPtStamp()}\n`,
+    `${sessionBanner(active.equity, active.cash, active.riskPct)}Generated: ${nowPtStamp()}\n`,
     "utf8",
   )
 }
 
-function buildBrief(reason: HandoffReason, mode: BookMode, snapshot: DeskSnapshot | null, uploads: HandoffUpload[]) {
-  const paper = mode === "paper"
+function buildBrief(reason: HandoffReason, snapshot: DeskSnapshot | null, uploads: HandoffUpload[]) {
   const book = snapshot?.book
   const active = readActiveAccount()
   const pick = snapshot?.pick
@@ -187,9 +171,6 @@ function buildBrief(reason: HandoffReason, mode: BookMode, snapshot: DeskSnapsho
   const held = snapshot?.positions ?? []
   const watch = snapshot?.nextUp ?? []
   const scan = snapshot?.scan
-  const modeLine = paper
-    ? "PAPER — do not place these tickets in Robinhood cash. Trade Desk fills paper on Refresh when last trades through the trigger."
-    : "LIVE — phone Grok may place queued tickets from Robinhood/Potential Tickers in the cash (or broker) account."
   const heldLines = held.length
     ? held.map((pos) => `- ${pos.ticker} · ${pos.quantity} sh · last ${money(pos.lastPrice)} · stop ${money(pos.stopPrice ?? null)} · ${pos.nextRule ?? pos.heatNote}`).join("\n")
     : "- none"
@@ -203,28 +184,71 @@ function buildBrief(reason: HandoffReason, mode: BookMode, snapshot: DeskSnapsho
   const equity = book?.equity ?? active.equity
   const cash = book?.cash ?? active.cash
   const perName = book?.perNameRisk ?? active.riskPct
-  return `${sessionBanner(mode, equity, cash, perName)}\n---\n\n# Trade Desk brief\n\n**Active session:** ${sessionLabel(mode)}\n**Generated:** ${nowPtStamp()}\n**Why this file exists:** Grok Bot ran Trade Desk locally. Upload the paths below to Google Drive (same relative folders). Phone Grok reads handoff/ACTIVE-SESSION.md first.\n\n## Account\n${modeLine}\n\n- Equity: ${money(equity)}\n- Cash: ${money(cash)}\n- Open heat: ${money(book?.openHeat)}\n- Pending heat: ${money(book?.pendingHeat)}\n- Leftover heat: ${money(book?.remainingHeat ?? active.remainingRoom)}\n- 1R slot: ${money(perName)}\n- Scan: ${scan?.fileName ?? "none"}\n- Last action: ${reason}\n\n## Potential\n- Pick: ${pick ? `${pick.ticker} · ${pick.shares} sh · entry ${money(pick.entryPrice)} · stop ${money(pick.stopPrice)} · ${pick.why}` : "none"}\n- Runner-up: ${runner ? `${runner.ticker} · ${runner.shares} sh · entry ${money(runner.entryPrice)} · stop ${money(runner.stopPrice)}` : "none"}\n\n## Working orders\n${workLines}\n\n## Open positions\n${heldLines}\n\n## Watchlist\n${watchLines}\n\n## Regime\n${snapshot?.regime ? `${snapshot.regime.status} — ${snapshot.regime.reason}` : "n/a"}\n\n${snapshot?.nothingReason ? `## Nothing to take\n${snapshot.nothingReason}\n` : ""}## Upload map\nCopy each local file to Google Drive **Grok Trading/** keeping the path. Do not rename. Skip Drive \`(1)\` conflict copies.\n\n${uploadLines}\n\n## Do not upload\n- Robinhood OAuth tokens\n- \`node_modules\`, \`.env\`, \`.bridge\`\n`
+  return `${sessionBanner(equity, cash, perName)}
+---
+
+# Trade Desk brief
+
+**Book:** Grok Trading Robinhood cash
+**Generated:** ${nowPtStamp()}
+**Why this file exists:** Local leftover after Bot or Desk ran. Phone Grok reads the scan keepers + tape + Robinhood account, not this brief.
+
+## Account
+Live cash. Phone filters keepers against leftover capital. Yurei says take before any order.
+
+- Equity: ${money(equity)}
+- Cash: ${money(cash)}
+- Open heat: ${money(book?.openHeat)}
+- Pending heat: ${money(book?.pendingHeat)}
+- Leftover heat (guideline): ${money(book?.remainingHeat ?? active.remainingRoom)}
+- 1R slot (guideline): ${money(perName)}
+- Scan: ${scan?.fileName ?? "none"}
+- Last action: ${reason}
+
+## Potential
+- Pick: ${pick ? `${pick.ticker} · ${pick.shares} sh · entry ${money(pick.entryPrice)} · stop ${money(pick.stopPrice)} · ${pick.why}` : "none"}
+- Runner-up: ${runner ? `${runner.ticker} · ${runner.shares} sh · entry ${money(runner.entryPrice)} · stop ${money(runner.stopPrice)}` : "none"}
+
+## Working orders
+${workLines}
+
+## Open positions
+${heldLines}
+
+## Watchlist
+${watchLines}
+
+## Tape
+${snapshot?.regime ? `${snapshot.regime.status} — ${snapshot.regime.reason}` : "n/a"}
+
+${snapshot?.nothingReason ? `## Note\n${snapshot.nothingReason}\n` : ""}## Upload map
+Copy each local file to Google Drive **Grok Trading/** keeping the path. Do not rename. Skip Drive \`(1)\` conflict copies.
+
+${uploadLines}
+
+## Do not upload
+- Robinhood OAuth tokens
+- \`node_modules\`, \`.env\`, \`.bridge\`
+`
 }
 
 export function buildHandoff(reason: HandoffReason = "settings"): { manifest: HandoffManifest; snapshot: DeskSnapshot | null } {
-  const settings = readSettings()
-  const mode = settings.bookMode
-  const dirs = queueDirs(mode)
-  const snapshot = readSnapshot(mode)
+  const dirs = queueDirs()
+  const snapshot = readSnapshot()
   const uploads: HandoffUpload[] = []
 
   addFile(uploads, SETTINGS_FILE, "settings")
-  addFile(uploads, ACTIVE_SESSION_MD, "active-session", { required: true, bookMode: mode })
-  addFile(uploads, ACTIVE_SESSION_JSON, "active-session", { required: true, bookMode: mode })
-  addFile(uploads, snapshotFile(mode), "desk-snapshot", { required: true, bookMode: mode })
-  addFile(uploads, ACCOUNT_FILE, "account-summary", { bookMode: mode })
-  addFile(uploads, PAPER_ACCOUNT_FILE, "paper-ledger", { bookMode: "paper" })
+  addFile(uploads, ACTIVE_SESSION_MD, "active-session", { required: true, bookMode: "live" })
+  addFile(uploads, ACTIVE_SESSION_JSON, "active-session", { required: true, bookMode: "live" })
+  addFile(uploads, snapshotFile(), "desk-snapshot", { required: true, bookMode: "live" })
+  addFile(uploads, ACCOUNT_FILE, "account-summary", { bookMode: "live" })
+  addFile(uploads, REGIME_FILE, "tape")
+  addFile(uploads, WATCHES_FILE, "watches")
   addFile(uploads, LAST_REFRESH_FILE, "live-snapshot", { bookMode: "live" })
-  addFile(uploads, LAST_REFRESH_PAPER_FILE, "paper-snapshot", { bookMode: "paper" })
   for (const file of activeScanFiles()) addFile(uploads, file, "scan")
   addDirJsonMd(uploads, OUTCOMES_DIR, "outcomes")
-  addDirJsonMd(uploads, dirs.potential, paperKind("potential", mode), mode)
-  addDirJsonMd(uploads, dirs.filled, paperKind("filled", mode), mode)
+  addDirJsonMd(uploads, dirs.potential, "live-potential", "live")
+  addDirJsonMd(uploads, dirs.filled, "live-filled", "live")
 
   const seen = new Set<string>()
   const unique = uploads.filter((row) => {
@@ -239,14 +263,14 @@ export function buildHandoff(reason: HandoffReason = "settings"): { manifest: Ha
       schema: "grok-trading-handoff/v1",
       generatedAt: nowPtStamp(),
       reason,
-      bookMode: mode,
+      bookMode: "live",
       driveRoot: "Grok Trading",
-      instruction: "Upload each `local` path to Google Drive folder Grok Trading at the same relative `drive` path. Do not rename. Do not upload OAuth tokens, node_modules, .env, or Drive '(1)' copies. Phone Grok should open handoff/ACTIVE-SESSION.md first — that file says LIVE or PAPER.",
+      instruction: "Upload each `local` path to Google Drive folder Grok Trading at the same relative `drive` path. Do not rename. Do not upload OAuth tokens, node_modules, .env, or Drive '(1)' copies. Phone Grok reads the full keeper .md and live Robinhood cash. Tape is not a lock.",
       phoneGrok: {
         readFirst: "handoff/ACTIVE-SESSION.md",
-        active: mode,
-        placeCashOrders: mode === "live",
-        doNotPlaceCashIfPaper: mode === "paper",
+        active: "live",
+        placeCashOrders: true,
+        doNotPlaceCashIfPaper: false,
       },
       neverUpload: NEVER_UPLOAD,
       folders: DRIVE_FOLDERS,
@@ -260,14 +284,10 @@ export function writeHandoff(reason: HandoffReason): HandoffManifest {
   writeActiveSessionFiles()
   const { manifest, snapshot } = buildHandoff(reason)
   fs.writeFileSync(HANDOFF_MANIFEST_FILE, JSON.stringify(manifest, null, 2), "utf8")
-  fs.writeFileSync(HANDOFF_BRIEF_FILE, buildBrief(reason, manifest.bookMode, snapshot, manifest.uploads), "utf8")
+  fs.writeFileSync(HANDOFF_BRIEF_FILE, buildBrief(reason, snapshot, manifest.uploads), "utf8")
   return manifest
 }
 
 export function readHandoff(): HandoffManifest {
   return buildHandoff().manifest
-}
-
-function paperKind(kind: "potential" | "filled", mode: BookMode) {
-  return mode === "paper" ? `paper-${kind}` : `live-${kind}`
 }

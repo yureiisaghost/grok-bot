@@ -229,7 +229,7 @@ export function PriceChart({ plan }: { plan: PlanOfAttack }) {
         <div className="chart-box chart-empty">
           {plan.heldChart
             ? "No daily bars yet for this position. Click Refresh, then open the card again."
-            : "No daily bars stored for this name. Click it in the screener after Run All to rebuild the chart."}
+            : "No daily bars stored for this name. Re-run npm run scan, then open the card again."}
         </div>
       </div>
     )

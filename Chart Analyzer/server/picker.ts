@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: DeskSettings = {
   maxHeatPct: 6,
   maxNewNames: 2,
   bookMode: "live",
-  paperStartingCash: 5000,
+  paperStartingCash: 1000,
 }
 
 export interface BookPosition {
@@ -96,7 +96,7 @@ function clampSettings(raw: Partial<DeskSettings> | null | undefined): DeskSetti
     riskPct: Math.min(5, Math.max(0.25, riskPct)),
     maxHeatPct: Math.min(20, Math.max(1, maxHeatPct)),
     maxNewNames: Math.round(Math.min(5, Math.max(1, maxNewNames))),
-    bookMode: raw?.bookMode === "paper" ? "paper" : "live",
+    bookMode: "live",
     paperStartingCash: Math.min(1_000_000, Math.max(1_000, paperStartingCash)),
   }
 }
@@ -196,6 +196,7 @@ function toPick(
     stopKind: "Stop-market",
     clusterTag: clusterTag(plan),
     clusterUsed,
+    actionable: true,
   }
 }
 
@@ -314,27 +315,23 @@ export function pickForBook(
   nextUp.sort((a, b) => (b.qualityScore ?? 0) - (a.qualityScore ?? 0))
   const ranked = sortPicks(eligible)
   const regime = opts?.regime ?? null
-  const allowsNewHeat = regime == null || regime.allowsNewHeat
-  let remainingHeat = deskBook.remainingHeat
-  let remainingCash = cash
-  const allocated: DeskPick[] = []
-  const allocatedPlans: PlanOfAttack[] = []
   const clusterCap = equity * CLUSTER_PCT
 
-  if (!allowsNewHeat) {
-    for (const plan of ranked) {
-      skipped.push({ ticker: plan.ticker, reason: "regime — no new heat" })
-    }
-  } else {
+  const tryAllocate = (heatBudget: number, recordSkips: boolean) => {
+    const allocated: DeskPick[] = []
+    const allocatedPlans: PlanOfAttack[] = []
+    const extraSkipped: DeskSkip[] = []
+    let remainingHeat = heatBudget
+    let remainingCash = cash
     for (const plan of ranked) {
       if (allocated.length + working.length >= settings.maxNewNames) {
-        skipped.push({ ticker: plan.ticker, reason: "not the pick this refresh" })
+        extraSkipped.push({ ticker: plan.ticker, reason: "not the pick this refresh" })
         continue
       }
       const shareRisk = oneShareRisk(plan)
       const px = plan.entryPrice ?? lastPx(plan)
       if (shareRisk == null || px == null || px <= 0) {
-        skipped.push({ ticker: plan.ticker, reason: "missing entry or 1-share risk" })
+        extraSkipped.push({ ticker: plan.ticker, reason: "missing entry or 1-share risk" })
         continue
       }
       const peers = [
@@ -371,13 +368,13 @@ export function pickForBook(
             : remainingCash < px
               ? "leftover cash cannot buy 1 share"
               : "notional cap (20% of equity)"
-        skipped.push({ ticker: plan.ticker, reason: why })
+        extraSkipped.push({ ticker: plan.ticker, reason: why })
         continue
       }
       const notion = shares * px
       const adv = dollarAdv(plan)
       if (adv != null && adv > 0 && notion / adv > MAX_NOTIONAL_ADV) {
-        skipped.push({ ticker: plan.ticker, reason: "illiquid at this size" })
+        extraSkipped.push({ ticker: plan.ticker, reason: "illiquid at this size" })
         continue
       }
       const dollarRisk = shares * shareRisk
@@ -386,6 +383,16 @@ export function pickForBook(
       remainingHeat -= dollarRisk
       remainingCash -= notion
     }
+    if (recordSkips) skipped.push(...extraSkipped)
+    return allocated
+  }
+
+  let allocated = tryAllocate(deskBook.remainingHeat, true)
+  if (!allocated.length && ranked.length) {
+    allocated = tryAllocate(Math.max(deskBook.maxHeat, perNameRisk), false).map((pick) => ({
+      ...pick,
+      why: `${pick.why} · leftover-heat guideline would not fit 1 share`,
+    }))
   }
 
   let nothingReason: string | null = null
@@ -393,13 +400,10 @@ export function pickForBook(
   if (!allocated.length && !working.length) {
     if (!plans.length) {
       nothingStep = 0
-      nothingReason = "No screener list yet. Open Screener, run a scan, and save keepers."
-    } else if (regime && !regime.allowsNewHeat) {
-      nothingStep = regime.status === "pressure" ? 2 : regime.status === "blackout" ? 3 : 1
-      nothingReason = regime.reason
+      nothingReason = "No keeper list yet. Bot runs npm run scan -- --csv, then Phone filters against leftover cash."
     } else if (deskBook.remainingHeat < 0.01) {
       nothingStep = 4
-      nothingReason = "Heat is full. No leftover risk for a new name."
+      nothingReason = "Heat guideline is full. Phone still presents capital-fit names; Yurei says take or skip."
     } else if (!eligible.length) {
       nothingStep = 5
       nothingReason = "Nothing on the list is a near Candidate with a real path to 1R that fits this book."
