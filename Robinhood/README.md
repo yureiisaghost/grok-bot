@@ -8,7 +8,7 @@ This folder is **not** the Bot → Phone pack. Grok Bot does not upload scans he
 | `Filled/` | Phone (or leftover Desk sync) | Ticket after the buy fills |
 | `Stale/` | Phone | Dead, skipped, or never-placed tickets |
 
-The pack Phone reads for the **Portfolio Card** lives under `desk-data/scans/`, `desk-data/regime.json`, and `desk-data/watches.json` in Drive folder **`Grok Trading/`** (this clone). Live prices and the cash book come from Robinhood MCP, not from these files.
+The pack Phone reads for the **Portfolio Card** lives under `desk-data/scans/`, `desk-data/regime.json`, and `desk-data/watches.json` in Drive folder **`Grok Trading/`**. Bot uploads those from **Bot’s machine**. Live prices and the cash book come from Robinhood MCP, not from these files.
 
 The in-app lists named **Potential** and **Watch** are not folders in here.
 

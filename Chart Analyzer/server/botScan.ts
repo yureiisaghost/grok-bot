@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto"
 import { buildPlan } from "./analyze"
 import { rowsFromCsvText, isCheapCsvPrice } from "./csv"
 import { SCAN_PROGRESS_FILE, SCANS_DIR, SCREENER_UPLOADS_DIR, ensureDeskDirs, posixRel } from "./deskPaths"
+import { DRIVE_FOLDER, drivePushAfterScan } from "./drivePack"
 import { savePlans } from "./markdown"
 import { DataError } from "./market"
 import { mintFromActiveScan } from "./outcomes"
@@ -87,7 +88,8 @@ async function main() {
     if (!found) {
       const archived = tidyScreenerFolderOnSkip(SCREENER_UPLOADS_DIR)
       if (archived.length) console.log(`[scan] archived ${archived.length} extra screener file(s) to Screener Uploads/Archive/`)
-      console.log("[scan] no new screener in Screener Uploads/. Skip.")
+      console.log("[scan] no new screener in local Screener Uploads/. Skip.")
+      console.log(`[scan] If you did not pull Drive ${DRIVE_FOLDER}/Screener Uploads/ first, pull it and run again.`)
       process.exit(0)
     }
     absCsv = found.abs
@@ -167,19 +169,31 @@ async function main() {
   ensureWatchesFile()
 
   const stem = meta.fileName ? meta.fileName.replace(/\.md$/i, "") : null
-  const uploads = [
-    meta.fileName ? `desk-data/scans/${meta.fileName}` : null,
-    stem ? `desk-data/scans/${stem}.json` : null,
-    stem ? `desk-data/scans/${stem}_keepers.json` : null,
-    stem ? `desk-data/scans/${stem}_candidates.json` : null,
-    "desk-data/scans/.active-scan.json",
-    "desk-data/scans/outcomes/",
-    "desk-data/regime.json",
-    "desk-data/watches.json",
-  ].filter(Boolean)
+  const uploadsRoot = path.resolve(SCREENER_UPLOADS_DIR)
+  const scanned = path.resolve(absCsv)
+  const inUploads = fromUploadsDrop || scanned === uploadsRoot || scanned.startsWith(uploadsRoot + path.sep)
+  const screenerRel: string[] = []
+  if (inUploads) {
+    const { archived } = maintainScreenerFolder(SCREENER_UPLOADS_DIR, absCsv)
+    if (archived.length) {
+      console.log(`[scan] archived ${archived.length} old screener(s) to Screener Uploads/Archive/`)
+      for (const dest of archived) screenerRel.push(posixRel(dest))
+    }
+    screenerRel.push(posixRel(absCsv))
+    screenerRel.push("Screener Uploads/.last-used.json")
+  }
+
+  const uploads = drivePushAfterScan({
+    stem,
+    scanFile: meta.fileName,
+    screenerRel,
+  })
 
   const summary = {
-    csv: absCsv,
+    machine: "grok-bot",
+    neverYureiPc: true,
+    driveFolder: DRIVE_FOLDER,
+    csv: posixRel(absCsv),
     elapsedMs: Date.now() - started,
     csvRows: rows.length,
     skippedUnder5: progress.skipped.length,
@@ -196,6 +210,12 @@ async function main() {
   ensureDeskDirs()
   if (stem) {
     fs.writeFileSync(path.join(SCANS_DIR, `${stem}_bot-summary.json`), JSON.stringify(summary, null, 2), "utf8")
+    fs.writeFileSync(path.join(SCANS_DIR, `${stem}_bot-drive.json`), JSON.stringify({
+      machine: "grok-bot",
+      neverYureiPc: true,
+      driveFolder: DRIVE_FOLDER,
+      push: uploads,
+    }, null, 2), "utf8")
   }
 
   console.log("")
@@ -205,18 +225,9 @@ async function main() {
     console.log("[scan] failed:", progress.failed.map((row) => `${row.ticker}: ${row.error}`).join(" · "))
   }
   console.log(`[scan] ${tapeNote}`)
-  console.log("[scan] upload to Drive Grok Trading/:")
+  console.log(`[scan] files are on THIS machine only. Upload each path to Drive ${DRIVE_FOLDER}/ at the same relative path. Phone cannot see this disk.`)
   for (const file of uploads) console.log(`  ${file}`)
-  console.log("[scan] Phone Grok reads the full keeper .md. Do not trim. Do not Place Order.")
-
-  const uploadsRoot = path.resolve(SCREENER_UPLOADS_DIR)
-  const scanned = path.resolve(absCsv)
-  if (fromUploadsDrop || scanned === uploadsRoot || scanned.startsWith(uploadsRoot + path.sep)) {
-    const { archived } = maintainScreenerFolder(SCREENER_UPLOADS_DIR, absCsv)
-    if (archived.length) {
-      console.log(`[scan] archived ${archived.length} old screener(s) to Screener Uploads/Archive/`)
-    }
-  }
+  console.log("[scan] Do not Place Order. Do not run anything on Yurei's PC.")
 
   clearProgress()
 }

@@ -42,7 +42,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, url: URL) {
         authUrl: mcp.authUrl,
         message: mcp.connected
           ? "Robinhood MCP is connected."
-          : "Connect Robinhood once in this app. Tokens stay on this PC, not in Google Drive.",
+          : "Connect Robinhood once in this app. Tokens stay on this machine (~/.grok-trading), not in Google Drive.",
         queue: queueMeta(),
         book: {
           bookMode: "live" as const,

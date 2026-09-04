@@ -1,6 +1,6 @@
 # Grok Trading — operating manual
 
-**This file is the only protocol.** Grok Bot and Phone Grok both pull it from GitHub. After a push, this Drive clone (`Grok Trading/`) has the same file at the same path. If an old chat, the Trade Desk UI, `handoff/DESK-BRIEF.md`, or `desk-data/last-refresh*.json` disagrees with this file, **this file wins**.
+**This file is the only protocol.** Grok Bot and Phone Grok both pull it from GitHub. If an old chat, the Trade Desk UI, `handoff/DESK-BRIEF.md`, or `desk-data/last-refresh*.json` disagrees with this file, **this file wins**.
 
 Yurei trades **charts**. You report the tape and the heat so the picture is honest. You do **not** decide that the account is closed, gated, parked, or “no new heat.” That call is Yurei’s, every time.
 
@@ -10,13 +10,13 @@ Yurei trades **charts**. You report the tape and the heat so the picture is hone
 
 1. Read **Shared rules**, then **Grok Bot**.
 2. Open `blueprints/GROK-BOT-AFTER-CLOSE-SCAN.md` in this repo (same commit as this README).
-3. **Before any scan:** create the skill and the weekday **1:20 PM PT unattended** routine from that file (check `Screener Uploads/` for a **new** CSV → scan if new, skip if not → pack lands in this Drive clone). If they already exist and match, leave them. If they drifted (including an old “download from TradingView” or “always scan today’s file” routine), update in place — do not create a second after-close routine. Tell Yurei the next run time.
+3. **Before any scan:** you run on **your** machine, never Yurei’s PC. Create the skill and the weekday **1:20 PM PT unattended** routine from that file (Drive MCP pull → new CSV? scan locally → Drive MCP push). If they already exist and match, leave them. If they drifted (including “run on Yurei’s Drive Desktop clone”), update in place — do not create a second after-close routine. Tell Yurei the next run time.
 4. Do not run Phone’s job.
 
 ## If you are Phone Grok, start here
 
 1. Read **Shared rules**, then **Phone Grok**.
-2. Open `blueprints/PHONE-GROK-AUTOMATIONS.md` and `blueprints/PHONE-PORTFOLIO-CARD.md` (GitHub or this Drive clone — same files, same paths).
+2. Open `blueprints/PHONE-GROK-AUTOMATIONS.md` and `blueprints/PHONE-PORTFOLIO-CARD.md` from GitHub (same commit as this README).
 3. **Before any ingest:** create the weekdays 4:00 PM PT ingest automation and the seven RTH hourly automations from the automations file. Those jobs must send the **Portfolio Card**. If they already exist and match, leave them. If they drifted, update in place — do not duplicate. Tell Yurei they are on.
 4. Do not run Bot’s job.
 
@@ -29,10 +29,10 @@ Yurei trades **charts**. You report the tape and the heat so the picture is hone
 | Who | Where | Job |
 |---|---|---|
 | **Yurei** | Charts + the phone chat | The only person who says take, skip, or size override. After the cash close, exports the TradingView screener and drops the CSV in `Screener Uploads/`. |
-| **Grok Bot** | This Drive-synced clone on the PC | Unattended pipeline: check `Screener Uploads/` for a **new** CSV → if none, skip → if new, `npm run scan` (writes `desk-data/` **here**) and archive old screeners. Phone reads those same paths on Drive MCP. Scanner only. Does not open TradingView. |
+| **Grok Bot** | **Bot’s own machine** (GitHub clone + Node + Robinhood MCP). Never Yurei’s PC. | Unattended pipeline: Drive MCP pull from `Grok Trading/` → if no new CSV, skip → if new, `npm run scan` on Bot’s disk → Drive MCP push the pack back to those same relative paths. Scanner only. |
 | **Phone Grok** | Yurei’s phone, a normal Grok chat | Final filter against the **live** Grok Trading Robinhood cash account. Live MCP quotes. Robinhood `Potential` / `Watch` lists. Sends Yurei the **Portfolio Card** on every hourly and every daily ingest so he can decide whether to update TradingView. Waits for take/skip before cash. |
 
-There is **no database**. Durable state is files in **one folder tree**. Google Drive folder **`Grok Trading/`** is this clone (same relative paths). GitHub holds the code and this manual so both Groks can pull the protocol. Robinhood the **app** is the broker, not a Drive folder.
+There is **no database**. Durable state is Google Drive folder **`Grok Trading/`**. GitHub holds the code and this manual. Grok Bot’s GitHub clone is a **scratch disk** for `npm run scan` — Phone cannot see it until Bot uploads. Yurei’s Drive Desktop folder (if he has one) is a **human mirror** of Drive, not Bot’s runtime. Robinhood the **app** is the broker, not a Drive folder.
 
 This app **does not place broker orders**. Bot grades names. Phone talks to Yurei and writes tickets. Cash orders exist only after Yurei says **take**.
 
@@ -42,12 +42,13 @@ There is **no paper book**. No Live/Paper toggle. No `$1,000` trainer ledger. No
 
 - Never hide a Candidate because QQQ, SPY, IWM, heat, FOMC, CPI, or NFP “says no.”
 - Never tell Yurei “we cannot trade today” because the index is unstacked or heat is at the guideline.
-- Never upload or commit `%USERPROFILE%\.grok-trading\` (OAuth), `.env`, `node_modules`, `.bridge`, or Drive copies named like `file (1).md`.
+- Never upload or commit `~/.grok-trading/` (OAuth), `.env`, `node_modules`, `.bridge`, or Drive copies named like `file (1).md`.
+- Never run the scanner on Yurei’s PC. Grok Bot uses **its** machine only.
 - Never treat `handoff/DESK-BRIEF.md` or `desk-data/last-refresh*.json` as the book.
 - Never invent tickers. Bot only grades names from a **new** CSV in `Screener Uploads/` (plus names Yurei explicitly adds). Do not type a homemade universe. If there is no new screener, do not scan.
 - Never trim Bot’s keeper `.md` down to a dock of 20. Phone may drop names from the **look list** for capital fit; the full list stays on Drive.
 - Never dump Bot’s full keeper list into a Robinhood watchlist. The app lists are Phone’s filtered **Potential** and **Watch** only.
-- Never invent Drive folders or different relative paths. Phone’s Drive MCP and this clone are the **same tree**. `desk-data/scans/.active-scan.json` here is `desk-data/scans/.active-scan.json` on Drive — not `Scans/`, not Drive root, not `Phone Pack/`.
+- Never invent Drive folders or different relative paths. Phone’s Drive MCP and Bot’s Drive MCP open the **same** Drive folder **`Grok Trading/`**. `desk-data/scans/.active-scan.json` on Drive is that path — not `Scans/`, not Drive root, not `Phone Pack/`, not a file that only exists on Bot’s disk.
 - Never recreate `messages/` or write Bot↔Phone letters. Clocks plus the Drive pack are the handoff.
 
 ## Yurei decides — locked
@@ -108,7 +109,7 @@ Jobs live in `blueprints/GROK-BOT-AFTER-CLOSE-SCAN.md` and `blueprints/PHONE-GRO
 | Clock | Who | Pacific time | What |
 |---|---|---|---|
 | Screener drop | **Yurei** | After the cash close (regular **1:00 PM PT**, early close **10:00 AM PT**) | Export the TradingView screener yourself and upload the `.csv` to Drive `Grok Trading/Screener Uploads/`. Bots cannot see the TradingView screener. |
-| After close | **Grok Bot** routine | Weekdays **1:20 PM PT** | Unattended: check `Screener Uploads/` for a **new** CSV (wait up to 20 minutes for Drive). No new file → skip, no scan. New file → `npm run scan`, then archive old CSVs so only the current screener stays in that folder. Phone’s Drive MCP reads `desk-data/`. On NYSE **early close** this time is still after the bell. |
+| After close | **Grok Bot** routine **on Bot’s machine** | Weekdays **1:20 PM PT** | Unattended: Drive MCP poll `Grok Trading/Screener Uploads/` (up to 20 minutes). No new file → skip. New file → pull to Bot’s clone → `npm run scan` → push pack + maintained `Screener Uploads/` back to Drive. Phone reads Drive, not Bot’s disk. Early close: still this clock. |
 | Hourly RTH | **Phone Grok** automations | Weekdays **7:00–1:00 PM PT** on the hour | Live book + quotes on **Potential** and **Watch**. Send the full **Portfolio Card** (`blueprints/PHONE-PORTFOLIO-CARD.md`). May promote a Watch that is now near; drop a Potential that died on its own stop. No new universe from Bot’s full dump. Seven weekday jobs if the app has no true hourly cron. |
 | Ingest scan | **Phone Grok** automation | Weekdays **4:00 PM PT** | Drive MCP: today’s pack at the paths in **Files** (Bot started 1:20 PM PT). Live-quote, capital-fit look list, replace Robinhood `Potential` / `Watch`, send the **Portfolio Card**. If today’s pack is missing, say “scan not up” — do not treat yesterday as today. |
 
@@ -116,19 +117,18 @@ Jobs live in `blueprints/GROK-BOT-AFTER-CLOSE-SCAN.md` and `blueprints/PHONE-GRO
 
 **Early close (still ingest at 4:00 PM PT):** 2026 Fri Nov 27 and Thu Dec 24 (1:00 PM ET / 10:00 AM PT). Hourly slots after 10:00 AM PT that day: “session already closed.”
 
-## One tree: GitHub, this clone, and Drive MCP
+## Three places (do not mix the disks)
 
-Yurei’s working folder **is** Google Drive folder **`Grok Trading/`**. What you write here is what Drive MCP sees. There is no second layout for Bot or Phone.
-
-| Place | What it is | What you do with it |
+| Place | What it is | Who uses it |
 |---|---|---|
-| **This clone / Drive `Grok Trading/`** | The **only** working tree. `Screener Uploads/`, `desk-data/`, `Robinhood/Tickets/`, `handoff/`, `blueprints/` sit at this root. | Yurei drops the screener CSV in `Screener Uploads/`. Bot writes the scan pack here. Phone’s **Google Drive MCP** opens these **same relative paths**. Do not rename, nest, or flatten them. |
-| **GitHub (this repo)** | Code + **this README** + blueprints. Both Groks **pull the protocol** from here. | After a push, `git pull` in this clone so Drive has the new manual. GitHub is **not** a second scan archive. Do not look on GitHub for today’s keepers. |
-| **Robinhood the app** | Live cash book, live orders, live quotes, and Phone’s `Potential` / `Watch` **lists**. | MCP on the phone chat. The Drive folder named `Robinhood/` is **tickets only**, not the app. Never copy OAuth tokens (`%USERPROFILE%\.grok-trading\`) to GitHub or Drive. |
+| **Grok Bot’s machine** | GitHub clone of this repo + Node 20+. Scratch disk for `npm run scan` and `npm run rh:connect`. Tokens in `~/.grok-trading/` on **Bot’s** home. | **Grok Bot only.** Never Yurei’s PC, never Cursor on Yurei’s Drive Desktop, never `G:\Grok Trading` as the runtime. |
+| **Google Drive folder `Grok Trading/`** | The **only** shared tree. Same relative paths for everyone. | Yurei drops the CSV here. Bot **pulls and pushes** here via Drive MCP. Phone **reads** here via Drive MCP. |
+| **GitHub (this repo)** | Code + **this README** + blueprints. | Both Groks pull the protocol. GitHub is **not** today’s scan archive. |
+| **Yurei’s PC (optional)** | Drive Desktop mirror and leftover Vite viewer. TradingView charts. | **Yurei only.** Bot does not run commands here. |
 
-**Paths are literal.** If this README says `desk-data/regime.json`, Drive MCP must open `Grok Trading/desk-data/regime.json`. Skip conflict copies (`(1)` in the filename). Do not create `Grok Trading/Grok Trading/`.
+**Robinhood the app** is the live cash book. The Drive folder named `Robinhood/` is tickets only.
 
-If you are Bot and this clone is already Drive-synced: writing the scan files **is** the Drive write. Do not copy the pack into another Drive folder. If you must confirm Drive MCP, confirm the **same** paths.
+**Paths are literal.** If this README says `desk-data/regime.json`, Drive MCP must open `Grok Trading/desk-data/regime.json`. A file that exists only on Bot’s clone is invisible to Phone until Bot uploads it. Skip `(1)` copies. Do not create `Grok Trading/Grok Trading/`. Never copy `~/.grok-trading/` to GitHub or Drive.
 
 ---
 
@@ -138,11 +138,11 @@ The Drive folder named `Robinhood/` is **not** Bot’s drop for Phone. That was 
 
 ### 0. Universe CSV — Yurei writes, Bot reads
 
-TradingView does **not** show the screener to Bots. After the cash close, **Yurei** exports the desk screener and drops the `.csv` in `Screener Uploads/` (Drive `Grok Trading/Screener Uploads/`, this clone). Overwrite is fine. Bot’s 1:20 PM PT job **checks for a new file** (`npm run scan` with no path). If nothing is new, it skips — that is not a failed scan. If a new CSV is there, it grades it, then **archives** every other CSV into `Screener Uploads/Archive/` so only the current screener stays in the immediate folder. Do not invent tickers.
+TradingView does **not** show the screener to Bots. After the cash close, **Yurei** exports the desk screener and drops the `.csv` in Drive `Grok Trading/Screener Uploads/`. Overwrite is fine. Bot, **on Bot’s machine**, pulls that folder (and `.last-used.json`) via Drive MCP, then `npm run scan -- --wait-minutes 0`. If nothing is new, skip. If new, grade it, archive other CSVs locally, then **push** the maintained folder and the keeper pack back to Drive. Do not invent tickers.
 
 ### 1. Phone pack — Bot writes, Phone reads (this is the drop)
 
-Bot’s unattended pipeline **writes these here**. Phone’s Drive MCP opens the **same paths**, then overlays live Robinhood MCP.
+Bot’s unattended pipeline **writes these on Bot’s disk, then uploads them to Drive**. Phone’s Drive MCP opens the **same paths**, then overlays live Robinhood MCP.
 
 | Path | What |
 |---|---|
@@ -169,12 +169,12 @@ If Drive still has the old names `Robinhood/Potential Tickers/`, `Filled Tickers
 
 # Files
 
-Drive MCP root = this clone root = **`Grok Trading/`**. Every path below is the path Phone opens on Drive and Bot writes on disk.
+Drive MCP root = **`Grok Trading/`**. Every path below is the path Phone opens on Drive and Bot uploads after a local scan.
 
 | Path | Who writes it | What it is |
 |---|---|---|
 | `README.md` | Humans / this repo | This protocol. Both Groks pull from GitHub. |
-| `blueprints/GROK-BOT-AFTER-CLOSE-SCAN.md` | This repo | Grok Bot **creates** the unattended `Screener Uploads/` → scan → write-pack-here routine (weekdays 1:20 PM PT). |
+| `blueprints/GROK-BOT-AFTER-CLOSE-SCAN.md` | This repo | Grok Bot **creates** the unattended Drive-pull → local scan → Drive-push routine (weekdays 1:20 PM PT) **on Bot’s machine**. |
 | `blueprints/PHONE-GROK-AUTOMATIONS.md` | This repo | Phone Grok **creates** ingest + hourly jobs on first session. |
 | `blueprints/PHONE-PORTFOLIO-CARD.md` | This repo | Layout of the card Phone sends on hourly and daily. |
 | `Screener Uploads/` | **Yurei** drops; **Grok Bot** maintains | Current TradingView screener **CSV**. Bot archives old files into `Screener Uploads/Archive/`. Not the Phone pack. |
@@ -198,9 +198,9 @@ Drive MCP root = this clone root = **`Grok Trading/`**. Every path below is the 
 | Robinhood app list **`Potential`** | **Phone Grok** | Convenience mirror of today’s **look list** (Yurei charts in **TradingView** from the Portfolio Card). Create if missing. |
 | Robinhood app list **`Watch`** | **Phone Grok** | Convenience mirror of Developing + carry watches not on Potential. Create if missing. |
 
-**Bot writes after a scan (this tree is Drive):** keepers `.md` + `.json`, `_keepers.json`, `_candidates.json`, `.active-scan.json`, `desk-data/regime.json` (tape), `desk-data/watches.json` if it is new, `desk-data/scans/outcomes/` if present, `desk-data/settings.json` if it changed. **Not** `Robinhood/` — that is Phone’s ticket ledger. Do not copy these into a different Drive folder.
+**Bot writes after a scan (local, then Drive MCP):** keepers `.md` + `.json`, `_keepers.json`, `_candidates.json`, `.active-scan.json`, `_bot-summary.json`, `_bot-drive.json`, `desk-data/regime.json`, `desk-data/watches.json` if new, outcomes if present, plus maintained `Screener Uploads/`. **Not** `Robinhood/`. Upload to Drive `Grok Trading/` at those exact relative paths. A local write that is not uploaded did not happen for Phone.
 
-**Bot does not need to re-home files:** `handoff/DESK-BRIEF.md` and `desk-data/last-refresh.json` are leftover Desk UI. Not the book. Do not upload OAuth or `node_modules`.
+**Do not upload:** `~/.grok-trading/`, `.env`, `node_modules`, leftover `handoff/DESK-BRIEF.md`, `desk-data/last-refresh.json`.
 
 Do not recreate `desk-data/paper-account.json` or `Robinhood/Paper/`.
 
@@ -238,29 +238,33 @@ Setup families you will see: MA Pullback / Key Level Reclaim, Bull Flag / First 
 
 You are the scanner. You are not the trader. You do not send Yurei the Portfolio Card.
 
-Your weekday routine is **fully unattended**: check `Screener Uploads/` for a **new** CSV → skip if none → `npm run scan` if new (files land in this Drive clone) → archive old screeners so only the current CSV stays in that folder → Phone reads the keeper paths on Drive MCP. Extra runs only when Yurei asks. Do **not** open TradingView. Do **not** download or export the screener. Do not use the Vite Trade Desk. Do not copy the pack into another Drive folder.
+You run on **your machine**. You do **not** run on Yurei’s PC. Last week’s working pattern is the design: clone this repo on your disk, pull/push Drive folder `Grok Trading/` with Drive MCP, grade with `npm run scan`.
+
+Your weekday routine is **fully unattended on your machine**: Drive MCP poll `Screener Uploads/` → skip if nothing new → pull CSV + `.last-used.json` + `watches.json` into **your** clone → `npm run scan -- --wait-minutes 0` → archive old screeners on your disk → **upload** the printed paths to Drive `Grok Trading/` at the same relative paths. Extra runs only when Yurei asks. Do **not** open TradingView. Do **not** use Yurei’s Drive Desktop as your working directory.
 
 ## First session — create the after-close routine (required)
 
-Do this **as soon as you finish reading this section**, before Connect, before a scan. Do not wait for Yurei to paste a prompt.
+Do this **as soon as you finish reading this section**, on **your** machine, before Connect, before a scan. Do not wait for Yurei to paste a prompt. Do not ask Yurei to run `npm` for you.
 
-1. Read `blueprints/GROK-BOT-AFTER-CLOSE-SCAN.md` in this clone.
-2. Save the skill in that file as **After-close keeper scan** (when to use, inputs, sequence, validate, return, approval).
-3. Create **your** routine from the **Routine** block in that file: weekdays **1:20 PM Pacific (America/Los_Angeles)**. NYSE holiday skip lives in the skill.
-4. If a routine with that name/schedule already exists: update it to match the blueprint. **Never** create a second 1:20 PM PT scan job.
-5. Tell Yurei in this chat: skill name, next run time, timezone. Do **not** fire a Test run unless today is a real session and Yurei says to test (a test does real work).
+1. Confirm you are on your machine (not Yurei’s Windows Drive Desktop). Clone `https://github.com/yureiisaghost/grok-bot` if you do not already have it. `desk-data/` must sit beside `Chart Analyzer/`.
+2. Confirm **Google Drive MCP** opens folder **`Grok Trading/`** (same relative paths as this README).
+3. Read `blueprints/GROK-BOT-AFTER-CLOSE-SCAN.md` in your clone.
+4. Save the skill in that file as **After-close keeper scan**.
+5. Create **your** routine from the **Routine** block: weekdays **1:20 PM Pacific (America/Los_Angeles)**. NYSE holiday skip lives in the skill.
+6. If a routine with that name/schedule already exists: update it to match the blueprint (Drive pull/push on your machine). **Never** create a second 1:20 PM PT scan job.
+7. Tell Yurei in this chat: skill name, next run time, timezone, and that the job runs on **your** machine. Do **not** fire a Test run unless today is a real session and Yurei says to test.
 
 Re-read the blueprint after every `git pull` that changes it. If the schedule or skill text changed, update the routine in place the same session.
 
 ## Pull
 
-1. `git pull` this repo on the PC clone. Read **this README** again if it changed.
-2. If the after-close skill/routine is missing or the blueprint changed, finish **First session — create the after-close routine** before anything below.
-3. Work from **this clone root** (Drive folder `Grok Trading/`) so `desk-data/` sits **beside** `Chart Analyzer/`, not inside it. Phone’s Drive MCP uses these same paths.
+1. `git pull` **on your machine**. Read **this README** again if it changed.
+2. If the after-close skill/routine is missing or the blueprint changed, finish **First session** before anything below.
+3. `npm run bot:drive` (prints the Drive pull/push list). Then Drive MCP: pull `Screener Uploads/` (including `.last-used.json`) and `desk-data/watches.json` + `desk-data/settings.json` into your clone at those exact relative paths.
 
-## Connect Robinhood (once)
+## Connect Robinhood (once, on your machine)
 
-Requires Node.js 20+. Market-data login only — not permission to trade cash. Tokens stay in `%USERPROFILE%\.grok-trading\`.
+Requires Node.js 20+. Market-data login only — not permission to trade cash. Tokens stay in `~/.grok-trading/` on **your** home directory.
 
 ```bash
 cd "Chart Analyzer"
@@ -268,31 +272,27 @@ npm install
 npm run rh:connect
 ```
 
-If port 5174 is busy (`npm run dev` is running), stop it, or click **Connect Robinhood** in the Desk, then retry.
+Open the printed URL in a browser **on your machine**. Do not use Yurei’s leftover Vite Desk.
 
 ## Run the scan
 
-Yurei drops the TradingView screener CSV in `Screener Uploads/` after the close. The weekday routine does **not** download TradingView. It **checks for a new screener** (a new file, or an overwrite of the last one). If nothing is new after waiting up to 20 minutes for Drive, it **skips** (exit 0) — no scan, no invented tickers. If a new CSV is there, it grades that file, then archives every other CSV into `Screener Uploads/Archive/` so only the current screener remains in the immediate folder. Extra runs only when Yurei asks. Skip Drive copies named like `file (1).csv` (Bot moves those to Archive).
+Yurei drops the CSV on **Drive**. You pull it, then:
 
 ```bash
 cd "Chart Analyzer"
-npm run scan
-npm run scan -- --resume
+npm run scan -- --wait-minutes 0
+npm run scan -- --wait-minutes 0 --resume
 ```
 
-`--csv "path"` is an override for a one-off file. The routine should not need it.
+- No new local CSV after a real Drive pull → exit 0, skip. Not a failed scan.
+- New CSV → grade it (skip price under $5; sequential `buildPlan`). Archive other CSVs into `Screener Uploads/Archive/`.
+- Writes keepers + `desk-data/regime.json`. Creates `desk-data/watches.json` only if missing — do not wipe names you pulled from Drive.
+- MCP 401 → exit 2. `npm run rh:connect`, then `--resume`.
+- Then **Drive MCP upload** every path printed under `upload` / `*_bot-drive.json`. Same relative paths. That is the only way Phone sees the pack.
 
-- Skips CSV price under $5.
-- Grades each name with first-pass `buildPlan` (sequential MCP). Log looks like `[scan] 12/84 AAPL Developing`.
-- Writes **every** Candidate and every Developing to the working `.md` / `.json`. Pass never writes. No dock trim. `cannot_size` is a note, not a drop.
-- Writes `desk-data/regime.json` (tape card) and creates `desk-data/watches.json` only if it is missing.
-- MCP 401 → exit 2. Run `npm run rh:connect` and `--resume`.
-- No new screener after the wait → exit 0, skip. That is not a failed scan.
-- After a successful scan, Bot archives other CSVs into `Screener Uploads/Archive/` and leaves only the current file in the immediate folder.
+`--csv "path"` is a one-off override. The routine should not need it.
 
-Stdout and `{stem}_bot-summary.json` list counts, failed tickers, and Drive paths.
-
-You do **not** need `npm run dev` to scan. Do **not** click Desk **Refresh**. Do **not** click **Place Order**. Do **not** write tickets under `Robinhood/` (Phone owns that folder after take).
+You do **not** need `npm run dev`. Do **not** Place Order. Do **not** write `Robinhood/` tickets.
 
 ## Tape file
 
@@ -306,13 +306,11 @@ You do **not** need `npm run dev` to scan. Do **not** click Desk **Refresh**. Do
 
 Do not skip the tape card. Do not treat `allowsNewHeat: false` as a reason to drop names.
 
-## This tree is Drive
+## Local disk is not Drive
 
-`npm run scan` already writes the pack listed under **Files** into this clone (`desk-data/scans/…`, `desk-data/regime.json`, …). That **is** Google Drive folder `Grok Trading/` — Phone’s Drive MCP opens those exact relative paths. Do not copy them into another Drive folder. Do not flatten them to Drive root. Do not invent `Phone Pack/` or `Scans/`.
+`npm run scan` writes the pack onto **your** clone. Phone does not see that until you upload to Drive `Grok Trading/` at the printed relative paths. Do not flatten to Drive root. Do not invent `Phone Pack/` or `Scans/`. Confirm the upload via Drive MCP at those **same** paths.
 
-There is **no mailbox**. Bot does not write `messages/TO-PHONE.md`. Phone does not write `messages/TO-BOT.md`. Phone’s 4:00 PM PT job reads `.active-scan.json`. If today’s pack is missing, Phone tells **Yurei** in the Portfolio Card chat. Yurei tells Bot if a rescan is needed.
-
-If Drive Desktop has not flushed, wait and confirm via Drive MCP at the **same** paths. Do not write a second copy elsewhere.
+There is **no mailbox**. Phone’s 4:00 PM PT job reads Drive `.active-scan.json`. If today’s pack is missing, Phone tells **Yurei**. Yurei tells you if a rescan is needed.
 
 ## After the close (when outcomes exist)
 
@@ -321,13 +319,15 @@ Mint/resolve outcome cards if that path is in the app (`desk-data/scans/outcomes
 ## You never
 
 - Size a live position for taking
-- Give Yurei a trading plan or Portfolio Card (that is Phone, after the scan lands in this tree)
+- Give Yurei a trading plan or Portfolio Card (that is Phone, after the pack is on Drive)
 - Place or manage Robinhood cash
 - Hourly-check the portfolio
 - Tell Phone “regime closed, take nothing”
+- Run any command on Yurei’s PC or treat Yurei’s Drive Desktop as your disk
+- Leave a finished scan only on your machine (if you do not upload, Phone has no pack)
 - Run the old Vite Screener / Run All / Save path (removed)
-- Open TradingView or export/download the screener (Yurei drops the CSV in `Screener Uploads/`)
-- Create or edit files under `Robinhood/` (tickets are Phone’s, after take)
+- Open TradingView or export/download the screener (Yurei drops the CSV on Drive)
+- Create or edit files under Drive `Robinhood/` (tickets are Phone’s, after take)
 - Create or edit Robinhood watchlists (`Potential` / `Watch` are Phone’s)
 - Skip **First session** (the after-close skill and routine are part of setup, not optional)
 
@@ -355,7 +355,7 @@ Re-read the blueprint when README says it changed. Update automations in place t
 
 Bot’s scan files are the **universe** and the **written setup** (entry, stop, thesis, grade). They are **not** the last price you use to rank, and they are **not** files under `Robinhood/`. Drive `lastPrice` is as stale as the scan. **No look list until live Robinhood MCP quotes land.**
 
-Use **your** Robinhood MCP in this phone chat (the Grok Trading cash account). Do not use Bot’s PC tokens. Do not re-grade charts.
+Use **your** Robinhood MCP in this phone chat (the Grok Trading cash account). Do not use Bot’s machine tokens. Do not re-grade charts.
 
 ## Live MCP (required before any look list)
 
@@ -371,7 +371,7 @@ Then filter. Only then send the **Portfolio Card**.
 
 Drive MCP folder is **`Grok Trading/`** — the same tree as this README. Open these **exact** relative paths. Do not look in a different Drive folder.
 
-1. Read **this README** from GitHub first (protocol). The copy in Drive `Grok Trading/README.md` is the same file after `git pull`. Do not run off memory of a paper trainer, dock-of-20, or “regime is a size rule.”
+1. Read **this README** from GitHub first (protocol). Do not run off memory of a paper trainer, dock-of-20, “regime is a size rule,” or “Bot writes on Yurei’s PC.”
 2. If this is the first session in this chat (or the automations are missing), finish **First session — create the automations** before anything below.
 3. `handoff/ACTIVE-SESSION.md` (session flag only — live book is still Robinhood MCP).
 4. `desk-data/scans/.active-scan.json`, then that scan’s **`.md`** under `desk-data/scans/` (and JSON / `_keepers.json` if you need fields). Read the **full** Candidate + Developing list.
@@ -446,7 +446,7 @@ Default suggestion: shares = floor((equity × 1%) / 1-share risk), 1-share risk 
 
 # Leftover Trade Desk UI
 
-The local app at [http://127.0.0.1:5174](http://127.0.0.1:5174) is leftover PC **viewer**: Connect, Refresh, Place Order (writes a file under `Robinhood/Tickets/`; does not send it to the broker). Grok Bot does **not** use it — scans are CLI. Phone’s visual for Yurei is the chat **Portfolio Card**, not this UI. Yurei updates **TradingView** from that card.
+The local app at [http://127.0.0.1:5174](http://127.0.0.1:5174) is leftover **Yurei-PC viewer**. Grok Bot does **not** use it and does **not** start it on Yurei’s machine. Scans are CLI on Bot’s machine. Phone’s visual is the chat **Portfolio Card**. Yurei updates **TradingView** from that card.
 
 **Phone Grok does not treat DESK-BRIEF or last-refresh as truth.** Live Robinhood MCP (book + quotes) + Bot’s keeper `.md` + `watches.json` + `regime.json` are the pack. The in-app `Potential` / `Watch` lists are a convenience mirror of Phone’s filtered set, not a second universe.
 
@@ -456,7 +456,7 @@ When leftover UI copy and this README fight, **this README wins**.
 
 # Short checklists
 
-**Bot after each run:** (routine 1:20 PM PT weekdays, skip NYSE holidays — **create that routine in First session**) check `Screener Uploads/` for a new CSV → skip if none → `npm run rh:connect` if needed → `npm run scan` if new (writes `desk-data/` in this Drive clone) → archive old screeners.
+**Bot after each run:** (routine 1:20 PM PT weekdays **on Bot’s machine**, skip NYSE holidays) Drive MCP pull `Screener Uploads/` → skip if nothing new → `npm run rh:connect` if needed → `npm run scan -- --wait-minutes 0` → Drive MCP push the printed paths to `Grok Trading/`.
 
 **Phone after each scan:** (automation 4:00 PM PT weekdays — **create it in First session**, no Bot ping) Drive MCP `Grok Trading/` at the paths in **Files** → prove pack is **today** via `.active-scan.json` → **live Robinhood MCP book + batched quotes** → capital-fit look list → sync Robinhood app `Potential` / `Watch` → **full Portfolio Card** → wait for Yurei. If the pack is not today’s, tell Yurei. Do not write Bot a Drive letter.
 

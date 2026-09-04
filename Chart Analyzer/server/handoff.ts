@@ -49,7 +49,7 @@ const NEVER_UPLOAD = [
   "Chart Analyzer/Temp/",
   ".bridge/",
   ".env",
-  "OAuth tokens in %USERPROFILE%\\.grok-trading\\ (never Drive)",
+  "OAuth tokens in ~/.grok-trading/ (never Drive)",
   "desk-data/scans files named like .active-scan (1).json — Drive conflict copies",
 ]
 

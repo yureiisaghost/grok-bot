@@ -4,7 +4,8 @@ import path from "node:path"
 const DRIVE_DUP = / \(\d+\)(\.[^.]+)?$/i
 export const LAST_USED_FILE = ".last-used.json"
 
-export const DEFAULT_WAIT_MS = 20 * 60 * 1000
+/** Drive MCP pull is the wait. Local scan starts after the CSV is already on Bot's disk. */
+export const DEFAULT_WAIT_MS = 0
 export const DEFAULT_POLL_MS = 15_000
 
 export function pacificDate(at = new Date()): string {

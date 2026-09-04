@@ -56,7 +56,7 @@ async function main() {
         server.close(() => process.exit(1))
         return
       }
-      console.log("Open this URL in a browser on this PC:")
+      console.log("Open this URL in a browser on THIS machine (Grok Bot's machine, not Yurei's PC):")
       console.log(authUrl)
       console.log(`Waiting for redirect to ${REDIRECT_URL} …`)
     }).catch((err) => {
